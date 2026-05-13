@@ -1,0 +1,19 @@
+{
+  "name": "p2p-screen-sharing-tool",
+  "version": "0.1.0",
+  "dependencies": [
+    "stb",
+    {
+      "name": "opencv4",
+      "default-features": false,
+      "features": [
+        "png", 
+        "jpeg", 
+        "ffmpeg", 
+        "highgui", 
+        "opengl",
+        "win32ui"
+      ]
+    }
+  ]
+}
