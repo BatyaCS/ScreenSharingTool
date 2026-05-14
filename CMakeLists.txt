@@ -23,6 +23,7 @@ set(APP_SOURCES
     "src/main.cpp"
     "src/capturer/video-capturer.cpp"
     "src/encoder/stream-encoder.cpp"
+    "src/decoder/stream-decoder.cpp"
 )
 
 add_executable(CaptureApp ${APP_SOURCES})

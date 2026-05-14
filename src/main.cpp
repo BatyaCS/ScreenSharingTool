@@ -5,11 +5,13 @@
 
 #include <capturer/video-capturer.h>
 #include <encoder/stream-encoder.h>
+#include <decoder/stream-decoder.h>
 
 int main()
 {
     VideoCapturer capturer;
-    StreamEncoder  encoder;
+    StreamEncoder encoder;
+    StreamDecoder decoder;
 
     // 1. Setup encoder configuration
     EncoderConfig enc_config;
@@ -25,70 +27,92 @@ int main()
         return -1;
     }
 
+    // Initialize the decoder
+    if (!decoder.init())
+    {
+        std::cerr << "Failed to initialize decoder!\n";
+        return -1;
+    }
+
     // 2. Setup capturer configuration
     CaptureConfig cap_config;
     cap_config.target = CaptureTarget::MONITOR;
 
-    // Capturer still needs OutputConfig to know target dimensions and capture rate
     OutputConfig out_config;
     out_config.width = enc_config.width;
     out_config.height = enc_config.height;
     out_config.target_fps = enc_config.fps;
 
-    // 3. Open binary file for writing the raw H.264 stream
-    std::ofstream output_file("test_frames.h264", std::ios::binary | std::ios::out);
-    if (!output_file.is_open())
-    {
-        std::cerr << "Failed to open output file!\n";
-        return -1;
-    }
+    // Shared resources for passing the decoded frame to the main UI thread
+    cv::Mat display_frame;
+    std::mutex frame_mutex;
 
-    std::atomic<int> frame_count{0};
-    const int max_frames = 300; // We want exactly 300 frames (~1 second of video)
-
-    // 4. Define the callback
+    // 3. Define the callback
     FrameCallback callback = [&](const cv::Mat& frame)
     {
-        // Stop processing if we reached the target frame count
-        if (frame_count.load() >= max_frames)
-        {
-            return;
-        }
-
         // Encode the raw OpenCV frame into H.264 packets
         std::vector<uint8_t> packet = encoder.encode_frame(frame);
         
         if (!packet.empty())
         {
-            // Write bytes directly to the file
-            output_file.write(reinterpret_cast<const char*>(packet.data()), packet.size());
+            cv::Mat decoded_frame;
             
-            std::cout << "Encoded frame " << (frame_count.load() + 1) << "/" << max_frames 
-                      << " | Size: " << packet.size() << " bytes\n";
+            // Decode the H.264 packet back into a BGR frame
+            if (decoder.decode_packet(packet, decoded_frame))
+            {
+                // Lock the mutex before updating the shared display frame
+                std::lock_guard<std::mutex> lock(frame_mutex);
+                decoded_frame.copyTo(display_frame);
+            }
         }
-
-        frame_count++;
     };
 
-    // 5. Start the capture process
-    std::cout << "Starting capture and encoding...\n";
+    // 4. Start the capture process
+    std::cout << "Starting capture, encoding, and decoding loopback...\n";
     if (!capturer.start(cap_config, out_config, callback))
     {
         std::cerr << "Failed to start capturer!\n";
         return -1;
     }
 
-    // 6. Wait in the main thread until 30 frames are processed
-    while (frame_count.load() < max_frames && capturer.is_running())
+    // 5. Main UI loop
+    cv::namedWindow("Stream Preview (Loopback)", cv::WINDOW_NORMAL);
+    // Resize the preview window so it doesn't take up the whole screen
+    cv::resizeWindow("Stream Preview (Loopback)", 2560, 1440);
+
+    std::cout << "Press ESC in the preview window to stop.\n";
+
+    while (capturer.is_running())
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        cv::Mat local_frame;
+        
+        // Safely extract the latest decoded frame
+        {
+            std::lock_guard<std::mutex> lock(frame_mutex);
+            if (!display_frame.empty())
+            {
+                display_frame.copyTo(local_frame);
+            }
+        }
+
+        // Show the frame
+        if (!local_frame.empty())
+        {
+            cv::imshow("Stream Preview (Loopback)", local_frame);
+        }
+
+        // Wait for ~16ms (~60 FPS) and check if ESC (key code 27) was pressed
+        if (cv::waitKey(16) == 27)
+        {
+            break;
+        }
     }
 
-    // 7. Cleanup
+    // 6. Cleanup
     capturer.stop();
-    output_file.close();
+    cv::destroyAllWindows();
 
-    std::cout << "Successfully saved " << max_frames << " frames to 'test_frames.h264'.\n";
+    std::cout << "Loopback test completed gracefully.\n";
 
     return 0;
 }

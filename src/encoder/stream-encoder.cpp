@@ -1,13 +1,6 @@
 #include <encoder/stream-encoder.h>
 #include <iostream>
 
-StreamEncoder::StreamEncoder() = default;
-
-StreamEncoder::~StreamEncoder()
-{
-    release();
-}
-
 bool StreamEncoder::init(const EncoderConfig& config)
 {
     _config = config;
@@ -22,9 +15,7 @@ bool StreamEncoder::init(const EncoderConfig& config)
 
     _codec_context = avcodec_alloc_context3(codec);
     if (!_codec_context)
-    {
         return false;
-    }
 
     // 2. Setup codec parameters
     _codec_context->width = config.width;
