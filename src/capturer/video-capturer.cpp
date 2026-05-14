@@ -9,7 +9,6 @@ bool VideoCapturer::start(const CaptureConfig& cap, const OutputConfig& out, Fra
     _should_stop.store(false);
     _is_running.store(true);
     
-    // Start standard std::thread
     _capture_thread = std::thread(&VideoCapturer::capture_loop, this, cap, out, callback);
 
     return true;
@@ -17,21 +16,36 @@ bool VideoCapturer::start(const CaptureConfig& cap, const OutputConfig& out, Fra
 
 void VideoCapturer::stop()
 {
-    // Signal the loop to terminate
     _should_stop.store(true);
 
-    // Wait for the thread to finish its current iteration
     if (_capture_thread.joinable())
         _capture_thread.join();
 
     _is_running.store(false);
 }
 
+void VideoCapturer::cleanup_gdi()
+{
+    if (_hbm_screen)
+    {
+        DeleteObject(_hbm_screen);
+        _hbm_screen = nullptr;
+    }
+
+    if (_hdc_mem)
+    {
+        DeleteDC(_hdc_mem);
+        _hdc_mem = nullptr;
+    }
+
+    _cached_width = 0;
+    _cached_height = 0;
+}
+
 void VideoCapturer::capture_loop(CaptureConfig cap, OutputConfig out, FrameCallback callback)
 {
     const auto frame_duration = std::chrono::milliseconds(1000 / out.target_fps);
 
-    // Check the atomic flag on each iteration
     while (!_should_stop.load())
     {
         auto start_time = std::chrono::steady_clock::now();
@@ -46,7 +60,6 @@ void VideoCapturer::capture_loop(CaptureConfig cap, OutputConfig out, FrameCallb
             else
                 resized_frame = raw_frame;
 
-            // Push to encoder, network, or UI
             if (callback)
                 callback(resized_frame);
         }
@@ -54,13 +67,12 @@ void VideoCapturer::capture_loop(CaptureConfig cap, OutputConfig out, FrameCallb
         auto end_time = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
         
-        // Sleep to maintain the target FPS
         if (elapsed < frame_duration)
             std::this_thread::sleep_for(frame_duration - elapsed);
     }
 }
 
-cv::Mat VideoCapturer::grab_frame(const CaptureConfig& cap)
+const cv::Mat& VideoCapturer::grab_frame(const CaptureConfig& cap)
 {
     HWND target_hwnd = nullptr;
     int src_x = 0;
@@ -68,14 +80,12 @@ cv::Mat VideoCapturer::grab_frame(const CaptureConfig& cap)
     int width = 0;
     int height = 0;
 
-    // 1. Determine target dimensions and coordinates based on target type
-    if (cap.target == CaptureTarget::APPLICATION)
+    // 1. Determine target dimensions
+    if (cap.target == Target::APPLICATION) // У вас было Target::APPLICATION
     {
         target_hwnd = cap.window_handle;
         if (!IsWindow(target_hwnd))
-        {
             return cv::Mat();
-        }
         
         RECT rc;
         GetClientRect(target_hwnd, &rc);
@@ -84,7 +94,7 @@ cv::Mat VideoCapturer::grab_frame(const CaptureConfig& cap)
     }
     else
     {
-        target_hwnd = GetDesktopWindow(); // The virtual desktop covering all monitors
+        target_hwnd = GetDesktopWindow(); 
         
         if (cap.monitor_handle != nullptr)
         {
@@ -99,7 +109,6 @@ cv::Mat VideoCapturer::grab_frame(const CaptureConfig& cap)
             }
         }
         
-        // Fallback to primary screen if handle is null or GetMonitorInfo fails
         if (width <= 0 || height <= 0)
         {
             src_x = 0;
@@ -110,31 +119,42 @@ cv::Mat VideoCapturer::grab_frame(const CaptureConfig& cap)
     }
 
     if (width <= 0 || height <= 0)
-    {
         return cv::Mat();
+
+    HDC hdc_window = GetDC(target_hwnd);
+
+    // 2. Reallocate resources ONLY if dimensions changed
+    if (width != _cached_width || height != _cached_height)
+    {
+        cleanup_gdi(); // Clean old buffers
+
+        _hdc_mem = CreateCompatibleDC(hdc_window);
+        _hbm_screen = CreateCompatibleBitmap(hdc_window, width, height);
+        
+        // cv::Mat::create is smart: it only reallocates if size or type changed
+        _cached_frame.create(height, width, CV_8UC4);
+        
+        _cached_width = width;
+        _cached_height = height;
     }
 
-    // 2. Perform WinAPI capturing
-    HDC hdc_window = GetDC(target_hwnd);
-    HDC hdc_mem_dc = CreateCompatibleDC(hdc_window);
-    HBITMAP hbm_screen = CreateCompatibleBitmap(hdc_window, width, height);
-    SelectObject(hdc_mem_dc, hbm_screen);
+    // 3. Perform WinAPI capturing using cached resources
+    HBITMAP hbm_old = (HBITMAP)SelectObject(_hdc_mem, _hbm_screen);
 
-    // Notice src_x and src_y here: this allows capturing secondary monitors correctly
-    BitBlt(hdc_mem_dc, 0, 0, width, height, hdc_window, src_x, src_y, SRCCOPY | CAPTUREBLT);
+    BitBlt(_hdc_mem, 0, 0, width, height, hdc_window, src_x, src_y, SRCCOPY | CAPTUREBLT);
 
-    // 3. Convert to OpenCV Mat
-    cv::Mat mat(height, width, CV_8UC4);
+    // 4. Extract bits directly into our cached OpenCV Mat
     BITMAPINFOHEADER bi = { sizeof(BITMAPINFOHEADER), width, -height, 1, 32, BI_RGB };
+    GetDIBits(hdc_window, _hbm_screen, 0, height, _cached_frame.data, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
-    GetDIBits(hdc_window, hbm_screen, 0, height, mat.data, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
-
-    // 4. Cleanup resources
-    DeleteObject(hbm_screen);
-    DeleteDC(hdc_mem_dc);
+    // Restore old bitmap and release window DC (Window DCs should always be released promptly)
+    SelectObject(_hdc_mem, hbm_old);
     ReleaseDC(target_hwnd, hdc_window);
 
-    return mat;
+    // Return the cached frame. 
+    // IMPORTANT: Since we use it sequentially in the same thread (capture -> encode),
+    // returning the reference is perfectly safe and avoids ANOTHER copy.
+    return _cached_frame;
 }
 
 std::vector<std::pair<HWND, std::string>> VideoCapturer::get_available_windows()
