@@ -23,12 +23,27 @@ find_library(AVCODEC_LIB avcodec)
 find_library(AVUTIL_LIB avutil)
 find_library(SWSCALE_LIB swscale)
 
-set(APP_SOURCES 
+find_path(SRT_INCLUDE_DIR NAMES srt/srt.h)
+find_library(SRT_LIBRARY NAMES srt libsrt)
+
+if(SRT_INCLUDE_DIR AND SRT_LIBRARY)
+    message(STATUS "Found SRT: ${SRT_LIBRARY}")
+    add_library(SRT::srt UNKNOWN IMPORTED)
+    set_target_properties(SRT::srt PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${SRT_INCLUDE_DIR}"
+        IMPORTED_LOCATION "${SRT_LIBRARY}"
+    )
+else()
+    message(FATAL_ERROR "Could not find SRT library. Checked: ${SRT_INCLUDE_DIR} and ${SRT_LIBRARY}")
+endif()
+
+set(APP_SOURCES
     "src/main.cpp"
     "src/capturer/video-capturer.cpp"
     "src/encoder/stream-encoder.cpp"
     "src/decoder/stream-decoder.cpp"
     "src/ui/application-ui.cpp"
+    "src/network/srt-sender.cpp"
 )
 
 add_executable(CaptureApp ${APP_SOURCES})
@@ -46,4 +61,6 @@ target_link_libraries(CaptureApp PRIVATE
   glfw
   imgui::imgui
   OpenGL::GL
+  SRT::srt
+  ws2_32
 )

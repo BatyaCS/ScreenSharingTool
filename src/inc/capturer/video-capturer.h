@@ -58,6 +58,7 @@ private:
     int     _cached_height = 0;
 
     cv::Mat _cached_frame;
+    cv::Mat _null_frame = cv::Mat();
 };
 
 #endif /* VIDEO_CAPTURER_H_ */

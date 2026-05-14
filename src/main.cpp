@@ -8,6 +8,7 @@
 #include <capturer/video-capturer.h>
 #include <encoder/stream-encoder.h>
 #include <decoder/stream-decoder.h>
+#include <network/srt-sender.h>
 
 #include <ui/application-ui.h>
 
@@ -16,6 +17,7 @@ int main()
     VideoCapturer  capturer;
     StreamEncoder  encoder;
     StreamDecoder  decoder;
+    SrtSender      srt_sender;
 
     cv::Mat display_frame;
     std::mutex frame_mutex;
@@ -58,6 +60,18 @@ int main()
     {
         std::cout << "Starting stream with " << ui_settings.bitrate_kbps << " kbps at " << ui_settings.target_fps << " FPS.\n";
 
+        // 1. Ручные настройки для теста (замените на свой реальный IP сервера)
+        std::string server_ip = "185.198.166.86"; // ВАШ IP ЛИНУКС СЕРВЕРА
+        uint16_t server_port = 8890;
+        std::string stream_id = "publish:mystream";
+        std::string password = ""; 
+
+        // 2. Инициализация SRT
+        if (!srt_sender.init(server_ip, server_port, stream_id, password)) {
+            std::cerr << "Failed to initialize SRT Sender!" << std::endl;
+            return; 
+        }
+
         // Map UI settings to Backend config
         VideoCapturer::OutputConfig out_config;
         out_config.width = 1280; // Base resolution. Can be expanded in UI later
@@ -91,6 +105,8 @@ int main()
             
             if (!packet.empty())
             {
+                srt_sender.send_frame(packet);
+
                 cv::Mat decoded_frame;
                 // Decode
                 if (decoder.decode_h264_to_bgra(packet, decoded_frame))
@@ -111,6 +127,7 @@ int main()
     {
         std::cout << "Stopping stream...\n";
         capturer.stop();
+        srt_sender.stop();
 
         encoder.release();
         decoder.release();

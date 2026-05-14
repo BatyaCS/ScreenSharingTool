@@ -85,7 +85,7 @@ const cv::Mat& VideoCapturer::grab_frame(const CaptureConfig& cap)
     {
         target_hwnd = cap.window_handle;
         if (!IsWindow(target_hwnd))
-            return cv::Mat();
+            return _null_frame;
         
         RECT rc;
         GetClientRect(target_hwnd, &rc);
@@ -119,7 +119,7 @@ const cv::Mat& VideoCapturer::grab_frame(const CaptureConfig& cap)
     }
 
     if (width <= 0 || height <= 0)
-        return cv::Mat();
+        return _null_frame;
 
     HDC hdc_window = GetDC(target_hwnd);
 
