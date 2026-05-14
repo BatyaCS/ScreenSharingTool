@@ -14,7 +14,7 @@ find_package(Stb REQUIRED)
 
 set(APP_SOURCES 
     "src/main.cpp"
-    "src/capturer/module.cpp"
+    "src/capturer/video-capturer.cpp"
 )
 
 add_executable(CaptureApp ${APP_SOURCES})
