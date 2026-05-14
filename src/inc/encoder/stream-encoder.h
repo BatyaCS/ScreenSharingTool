@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <opencv2/opencv.hpp>
 
-// FFmpeg is a C library, so we must include it inside extern "C"
 extern "C"
 {
 #include <libavcodec/avcodec.h>
@@ -14,17 +13,17 @@ extern "C"
 #include <libswscale/swscale.h>
 }
 
-struct EncoderConfig
-{
-    unsigned int width = 1280;
-    unsigned int height = 720;
-    unsigned int fps = 30;
-    unsigned int bitrate_kbps = 2500;
-};
-
 class StreamEncoder
 {
 public:
+    struct EncoderConfig
+    {
+        uint width          = 1920;
+        uint height         = 1080;
+        uint fps            = 60;
+        uint bitrate_kbps   = 3000;
+    };
+
     StreamEncoder() = default;
     ~StreamEncoder() { release(); }
 
@@ -34,17 +33,17 @@ public:
     bool init(const EncoderConfig& config);
     void release();
 
-    // Takes a raw BGRA frame from OpenCV and returns an encoded H.264 packet
-    std::vector<uint8_t> encode_frame(const cv::Mat& frame);
+    std::vector<uint8_t> encode_h264_from_bgra(const cv::Mat& frame);
 
 private:
-    AVCodecContext* _codec_context = nullptr;
-    AVFrame* _frame = nullptr;
-    AVPacket* _packet = nullptr;
-    SwsContext* _sws_context = nullptr;
+    AVCodecContext *    _codec_context = nullptr;
+    AVFrame *           _frame = nullptr;
+    AVPacket *          _packet = nullptr;
+    SwsContext *        _sws_context = nullptr;
 
-    int             _frame_pts = 0;
-    EncoderConfig   _config;
+    EncoderConfig       _config;
+
+    uint                _frame_pts = 0;
 };
 
 #endif /* STREAM_ENCODER_H_ */

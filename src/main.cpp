@@ -69,7 +69,7 @@ int main()
         out_config.height = 720;
         out_config.target_fps = ui_settings.target_fps;
 
-        EncoderConfig enc_config;
+        StreamEncoder::EncoderConfig enc_config;
         enc_config.width = out_config.width;
         enc_config.height = out_config.height;
         enc_config.fps = ui_settings.target_fps;
@@ -92,7 +92,7 @@ int main()
         VideoCapturer::FrameCallback loopback_callback = [&](const cv::Mat& raw_frame)
         {
             // Encode
-            std::vector<uint8_t> packet = encoder.encode_frame(raw_frame);
+            std::vector<uint8_t> packet = encoder.encode_h264_from_bgra(raw_frame);
             
             if (!packet.empty())
             {

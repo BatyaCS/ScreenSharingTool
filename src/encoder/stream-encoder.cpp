@@ -5,7 +5,6 @@ bool StreamEncoder::init(const EncoderConfig& config)
 {
     _config = config;
 
-    // 1. Find the libx264 encoder
     const AVCodec* codec = avcodec_find_encoder_by_name("libx264");
     if (!codec)
     {
@@ -77,7 +76,7 @@ void StreamEncoder::release()
         avcodec_free_context(&_codec_context);
 }
 
-std::vector<uint8_t> StreamEncoder::encode_frame(const cv::Mat& frame)
+std::vector<uint8_t> StreamEncoder::encode_h264_from_bgra(const cv::Mat& frame)
 {
     std::vector<uint8_t> encoded_data;
 
