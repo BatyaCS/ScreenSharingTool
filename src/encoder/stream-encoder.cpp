@@ -1,3 +1,4 @@
+#include <common.h>
 #include <encoder/stream-encoder.h>
 #include <iostream>
 

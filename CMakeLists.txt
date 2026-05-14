@@ -50,6 +50,7 @@ add_executable(CaptureApp ${APP_SOURCES})
 
 target_include_directories(CaptureApp PRIVATE 
   "${CMAKE_CURRENT_SOURCE_DIR}/src/inc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/config"
   ${Stb_INCLUDE_DIR}
 )
 

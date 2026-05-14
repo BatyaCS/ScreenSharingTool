@@ -1,3 +1,4 @@
+#include <common.h>
 #include <ui/application-ui.h>
 #include <ui/ui-helpers.h>
 
