@@ -7,14 +7,7 @@
 #include <imgui_impl_opengl3.h>
 #include <iostream>
 
-ApplicationUI::ApplicationUI() = default;
-
-ApplicationUI::~ApplicationUI()
-{
-    shutdown();
-}
-
-bool ApplicationUI::init(const std::string& window_title, int width, int height)
+bool ApplicationUI::init(const UiConfig& config, const UiStreamConfig& stream_settings)
 {
     if (!glfwInit())
     {
@@ -26,9 +19,10 @@ bool ApplicationUI::init(const std::string& window_title, int width, int height)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    _window = glfwCreateWindow(width, height, window_title.c_str(), nullptr, nullptr);
+    _window = glfwCreateWindow(config.width, config.height, config.window_title.c_str(), nullptr, nullptr);
     if (!_window)
     {
+        std::cerr << "Failed to create glfw window!\n";
         glfwTerminate();
         return false;
     }
@@ -52,10 +46,16 @@ bool ApplicationUI::init(const std::string& window_title, int width, int height)
 
 void ApplicationUI::shutdown()
 {
-    if (_video_texture != 0)
+    if (_web_frame_texture != 0)
     {
-        glDeleteTextures(1, &_video_texture);
-        _video_texture = 0;
+        glDeleteTextures(1, &_web_frame_texture);
+        _web_frame_texture = 0;
+    }
+
+    if (_loopback_frame_texture != 0)
+    {
+        glDeleteTextures(1, &_loopback_frame_texture);
+        _loopback_frame_texture = 0;
     }
 
     if (_window)
@@ -70,22 +70,19 @@ void ApplicationUI::shutdown()
     }
 }
 
-void ApplicationUI::refresh_sources()
+bool ApplicationUI::refresh_sources()
 {
-    if (_on_refresh_sources)
-    {
-        bool is_app = (_capture_type == 1);
-        _current_sources = _on_refresh_sources(is_app);
-        _selected_source_idx = 0; // Reset selection to avoid out-of-bounds
-    }
+    if (!_on_refresh_sources)
+        return false;
+
+    _current_sources = _on_refresh_sources(_stream_config.capture_target);
+    _stream_config.source_idx = 0;
 }
 
-bool ApplicationUI::render_frame(const cv::Mat& current_video_frame, bool is_capturing)
+bool ApplicationUI::render()
 {
     if (glfwWindowShouldClose(_window))
-    {
         return false; 
-    }
 
     glfwPollEvents();
 
@@ -112,20 +109,28 @@ bool ApplicationUI::render_frame(const cv::Mat& current_video_frame, bool is_cap
     {
         if (ImGui::BeginTabItem("Broadcaster"))
         {
-            render_broadcaster_tab(is_capturing);
+            render_broadcaster_tab();
             ImGui::EndTabItem();
         }
-        if (ImGui::BeginTabItem("Viewer (Loopback Test)"))
+
+        if (ImGui::BeginTabItem("Viewer (Web)"))
         {
-            render_viewer_tab(current_video_frame);
+            render_web_preview_tab();
             ImGui::EndTabItem();
         }
+
+        if (ImGui::BeginTabItem("Viewer (Loopback)"))
+        {
+            render_loopback_preview_tab();
+            ImGui::EndTabItem();
+        }
+
         ImGui::EndTabBar();
     }
 
     ImGui::End();
-
     ImGui::Render();
+
     int display_w, display_h;
     glfwGetFramebufferSize(_window, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
@@ -138,77 +143,64 @@ bool ApplicationUI::render_frame(const cv::Mat& current_video_frame, bool is_cap
     return true;
 }
 
-void ApplicationUI::render_broadcaster_tab(bool is_capturing)
+bool ApplicationUI::render_broadcaster_tab()
 {
-    ImGui::Text("Capture Source");
+    ImGui::Text("Capture Source / Stream Target");
     ImGui::Separator();
 
-    ImGui::BeginDisabled(is_capturing);
+    ImGui::BeginDisabled(_ui_state.is_streaming_enabled);
 
-    ImGui::RadioButton("Monitor", &_capture_type, 0); ImGui::SameLine();
-    ImGui::RadioButton("Application", &_capture_type, 1);
+    ImGui::RadioButton("Monitor", reinterpret_cast<int*>(&_stream_config.capture_target), 0); ImGui::SameLine();
+    ImGui::RadioButton("Application", reinterpret_cast<int*>(&_stream_config.capture_target), 1);
 
-    // Auto-refresh lists if the user changes the capture type
-    if (_capture_type != _previous_capture_type)
+    ImGui::RadioButton("WebSRT", reinterpret_cast<int*>(&_stream_config.stream_target), 0); ImGui::SameLine();
+    ImGui::RadioButton("Loopback", reinterpret_cast<int*>(&_stream_config.stream_target), 1);
+
+    if (_stream_config.capture_target != _previous_stream_config.capture_target)
     {
         refresh_sources();
-        _previous_capture_type = _capture_type;
+        _previous_stream_config = _stream_config;
     }
 
     // Dynamic Combo Box for Sources
-    std::string combo_label = (_capture_type == 0) ? "Select Monitor" : "Select Window";
-    std::string preview_value = _current_sources.empty() ? "None found" : _current_sources[_selected_source_idx].name;
+    const std::string combo_label = (_stream_config.capture_target == UiStreamConfig::CaptureTarget::DISPLAY) ? "Select Display" : "Select Window";
+    const std::string preview_value = _current_sources.empty() ? "None found" : _current_sources[_stream_config.source_idx];
     
     if (ImGui::BeginCombo(combo_label.c_str(), preview_value.c_str()))
     {
-        for (int i = 0; i < _current_sources.size(); i++)
+        for (uint idx = 0; idx < _current_sources.size(); idx++)
         {
-            bool is_selected = (_selected_source_idx == i);
-            if (ImGui::Selectable(_current_sources[i].name.c_str(), is_selected))
-            {
-                _selected_source_idx = i;
-            }
+            const bool is_selected = _stream_config.source_idx == idx;
+
+            if (ImGui::Selectable(_current_sources[idx].c_str(), is_selected))
+                _stream_config.source_idx = idx;
+
             if (is_selected)
-            {
                 ImGui::SetItemDefaultFocus();
-            }
         }
+
         ImGui::EndCombo();
     }
 
     if (ImGui::Button("Refresh List"))
-    {
         refresh_sources();
-    }
 
     ImGui::Spacing();
     ImGui::Text("Encoding Settings");
     ImGui::Separator();
 
-    ImGui::SliderInt("Target FPS", &_target_fps, 10, 60);
-    ImGui::SliderInt("Bitrate (kbps)", &_target_bitrate, 500, 10000);
+    ImGui::SliderInt("Target FPS", reinterpret_cast<int*>(&_stream_config.target_fps), TARGET_FPS_MIN, TARGET_FPS_MAX);
+    ImGui::SliderInt("Bitrate (kbps)", reinterpret_cast<int*>(&_stream_config.target_br_kbps), TARGET_BITRATE_MIN, TARGET_BITRATE_MAX);
 
     ImGui::EndDisabled();
 
     ImGui::Spacing();
     
-    if (!is_capturing)
+    if (!_ui_state.is_streaming_enabled)
     {
         if (ImGui::Button("Start Stream", ImVec2(150, 40)))
-        {
-            UiStreamSettings settings;
-            settings.target_fps = _target_fps;
-            settings.bitrate_kbps = _target_bitrate;
-            settings.is_application = (_capture_type == 1);
-            settings.selected_handle = nullptr;
-
-            if (!_current_sources.empty())
-            {
-                settings.selected_handle = _current_sources[_selected_source_idx].handle;
-            }
-
-            if (_on_start) _on_start(settings);
-        }
+            if (_on_start_stream) 
+                _on_start_stream(_stream_config);
     }
     else
     {
@@ -216,22 +208,27 @@ void ApplicationUI::render_broadcaster_tab(bool is_capturing)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
         if (ImGui::Button("Stop Stream", ImVec2(150, 40)))
         {
-            if (_on_stop) _on_stop();
+            if (_on_stop_stream) 
+                _on_stop_stream();
         }
+
         ImGui::PopStyleColor(2);
     }
+
+    return true;
 }
 
-void ApplicationUI::render_viewer_tab(const cv::Mat& frame)
+bool ApplicationUI::render_web_preview_tab()
 {
-    if (!frame.empty())
-    {
-        _video_texture = mat_to_texture(frame, _video_texture);
-    }
+    if (!_web_frame)
+        return false;
 
-    if (_video_texture != 0)
+    if (!_web_frame->empty())
+        _web_frame_texture = mat_to_texture(*_web_frame, _web_frame_texture);
+    
+    if (_web_frame_texture != 0)
     {
-        float aspect_ratio = (float)frame.cols / (float)frame.rows;
+        float aspect_ratio = (float)_web_frame->cols / (float)_web_frame->rows;
         ImVec2 avail_size = ImGui::GetContentRegionAvail();
         
         float draw_width = avail_size.x;
@@ -247,10 +244,44 @@ void ApplicationUI::render_viewer_tab(const cv::Mat& frame)
         ImGui::SetCursorPosX(cursor_pos.x + (avail_size.x - draw_width) * 0.5f);
         ImGui::SetCursorPosY(cursor_pos.y + (avail_size.y - draw_height) * 0.5f);
 
-        ImGui::Image((ImTextureID)(intptr_t)_video_texture, ImVec2(draw_width, draw_height));
+        ImGui::Image((ImTextureID)(intptr_t)_web_frame_texture, ImVec2(draw_width, draw_height));
     }
     else
-    {
         ImGui::Text("Waiting for video stream...");
+
+    return true;
+}
+
+bool ApplicationUI::render_loopback_preview_tab()
+{
+    if (!_loopback_frame)
+        return false;
+
+    if (!_loopback_frame->empty())
+        _loopback_frame_texture = mat_to_texture(*_loopback_frame, _loopback_frame_texture);
+    
+    if (_loopback_frame_texture != 0)
+    {
+        float aspect_ratio = (float)_loopback_frame->cols / (float)_loopback_frame->rows;
+        ImVec2 avail_size = ImGui::GetContentRegionAvail();
+        
+        float draw_width = avail_size.x;
+        float draw_height = draw_width / aspect_ratio;
+
+        if (draw_height > avail_size.y)
+        {
+            draw_height = avail_size.y;
+            draw_width = draw_height * aspect_ratio;
+        }
+
+        ImVec2 cursor_pos = ImGui::GetCursorPos();
+        ImGui::SetCursorPosX(cursor_pos.x + (avail_size.x - draw_width) * 0.5f);
+        ImGui::SetCursorPosY(cursor_pos.y + (avail_size.y - draw_height) * 0.5f);
+
+        ImGui::Image((ImTextureID)(intptr_t)_loopback_frame_texture, ImVec2(draw_width, draw_height));
     }
+    else
+        ImGui::Text("Waiting for video stream...");
+
+    return true;
 }
