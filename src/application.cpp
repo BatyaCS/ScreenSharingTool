@@ -68,8 +68,12 @@ void Application::run()
     {        
         {
             std::lock_guard<std::mutex> lock(_loopback_frame_mutex);
-            if (!_loopback_frame_tmp.empty())
+
+            if (_is_loopback_frame_updated)
+            {
+                _is_loopback_frame_updated = false;
                 _loopback_frame_tmp.copyTo(_loopback_frame);
+            }
         }
 
         running = _ui.render();
@@ -83,7 +87,9 @@ void Application::handle_capturer_frame_received(const cv::Mat& frame)
     if (ApplicationUI::UiStreamConfig::StreamTarget::LOOPBACK == stream_cfg.stream_target)
     {            
         std::lock_guard<std::mutex> lock(_loopback_frame_mutex);
+
         frame.copyTo(_loopback_frame_tmp);
+        _is_loopback_frame_updated = true;
     }
     else
     {

@@ -54,6 +54,8 @@ private:
 
     bool            _is_stream_enabled = false;
     bool            _is_preview_enabled = false;
+
+    bool            _is_loopback_frame_updated = false;
 };
 
 #endif /* APPLICATION_H_ */
