@@ -18,9 +18,26 @@ static const ApplicationUI::UiStreamConfig default_ui_stream_cfg =
     .target_br_kbps = 2500
 };
 
+static const ApplicationUI::UiNetworkConfigRx default_ui_network_config_rx = 
+{
+    .stream_id = "mystream",
+    .stream_pwd = "123",
+    .server_ip = "yourip",
+    .server_port = 8890
+};
+
+static const ApplicationUI::UiNetworkConfigTx default_ui_network_config_tx = 
+{
+    .stream_id = "mystream",
+    .stream_pwd = "123",
+    .server_ip = "yourip",
+    .server_port = 8890
+};
+
+
 bool Application::init()
 {
-    if (!_ui.init(default_ui_config, default_ui_stream_cfg, ApplicationUI::UiNetworkConfigRx(), ApplicationUI::UiNetworkConfigTx()))
+    if (!_ui.init(default_ui_config, default_ui_stream_cfg, default_ui_network_config_rx, default_ui_network_config_tx))
     {
         std::cerr << "Failed to initialize the UI!\n";
         return false;

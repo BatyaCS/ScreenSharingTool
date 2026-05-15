@@ -47,16 +47,16 @@ public:
     };
     struct UiNetworkConfigTx
     {
-        std::string stream_id = "mystream";
-        std::string stream_pwd = "strongpwd";
+        std::string stream_id;
+        std::string stream_pwd;
 
         std::string server_ip;
         uint        server_port;
     };
     struct UiNetworkConfigRx
     {
-        std::string stream_id = "mystream";
-        std::string stream_pwd = "strongpwd";
+        std::string stream_id;
+        std::string stream_pwd;
 
         std::string server_ip;
         uint        server_port;
