@@ -7,7 +7,7 @@
 #include <imgui_impl_opengl3.h>
 #include <iostream>
 
-bool ApplicationUI::init(const UiConfig& config, const UiStreamConfig& stream_settings)
+bool ApplicationUI::init(const UiConfig& config, const UiStreamConfig& stream_config, const UiNetworkConfigRx& config_rx, const UiNetworkConfigTx& config_tx)
 {
     if (!glfwInit())
     {
@@ -41,6 +41,12 @@ bool ApplicationUI::init(const UiConfig& config, const UiStreamConfig& stream_se
     ImGui_ImplGlfw_InitForOpenGL(_window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
 
+    _stream_config = stream_config;
+    _previous_stream_config = stream_config;
+
+    _network_config_rx = config_rx;
+    _network_config_tx = config_tx;
+
     return true;
 }
 
@@ -68,15 +74,6 @@ void ApplicationUI::shutdown()
         glfwTerminate();
         _window = nullptr;
     }
-}
-
-bool ApplicationUI::refresh_sources()
-{
-    if (!_on_refresh_sources)
-        return false;
-
-    _current_sources = _on_refresh_sources(_stream_config.capture_target);
-    _stream_config.source_idx = 0;
 }
 
 bool ApplicationUI::render()
@@ -148,7 +145,7 @@ bool ApplicationUI::render_broadcaster_tab()
     ImGui::Text("Capture Source / Stream Target");
     ImGui::Separator();
 
-    ImGui::BeginDisabled(_ui_state.is_streaming_enabled);
+    ImGui::BeginDisabled(is_ui_locked(UiElement::STREAM_CONFIG));
 
     ImGui::RadioButton("Monitor", reinterpret_cast<int*>(&_stream_config.capture_target), 0); ImGui::SameLine();
     ImGui::RadioButton("Application", reinterpret_cast<int*>(&_stream_config.capture_target), 1);
@@ -158,11 +155,12 @@ bool ApplicationUI::render_broadcaster_tab()
 
     if (_stream_config.capture_target != _previous_stream_config.capture_target)
     {
-        refresh_sources();
+        if (_sources_update_callback)
+            _sources_update_callback();
+
         _previous_stream_config = _stream_config;
     }
 
-    // Dynamic Combo Box for Sources
     const std::string combo_label = (_stream_config.capture_target == UiStreamConfig::CaptureTarget::DISPLAY) ? "Select Display" : "Select Window";
     const std::string preview_value = _current_sources.empty() ? "None found" : _current_sources[_stream_config.source_idx];
     
@@ -183,7 +181,8 @@ bool ApplicationUI::render_broadcaster_tab()
     }
 
     if (ImGui::Button("Refresh List"))
-        refresh_sources();
+        if (_sources_update_callback)
+            _sources_update_callback();
 
     ImGui::Spacing();
     ImGui::Text("Encoding Settings");
@@ -196,21 +195,19 @@ bool ApplicationUI::render_broadcaster_tab()
 
     ImGui::Spacing();
     
-    if (!_ui_state.is_streaming_enabled)
+    if (!is_ui_locked(UiElement::STREAM_CONFIG))
     {
         if (ImGui::Button("Start Stream", ImVec2(150, 40)))
-            if (_on_start_stream) 
-                _on_start_stream(_stream_config);
+            if (_start_stop_stream_callback) 
+                _start_stop_stream_callback();
     }
     else
     {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
         if (ImGui::Button("Stop Stream", ImVec2(150, 40)))
-        {
-            if (_on_stop_stream) 
-                _on_stop_stream();
-        }
+            if (_start_stop_stream_callback) 
+                _start_stop_stream_callback();
 
         ImGui::PopStyleColor(2);
     }

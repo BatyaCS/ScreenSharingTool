@@ -6,6 +6,7 @@
 #include <functional>
 #include <GLFW/glfw3.h>
 #include <opencv2/opencv.hpp>
+#include <bitset>
 
 class ApplicationUI
 {
@@ -16,6 +17,13 @@ class ApplicationUI
     static constexpr uint TARGET_BITRATE_MAX = 10000;
 
 public:
+    enum class UiElement : size_t 
+    {
+        STREAM_CONFIG,
+        PREVIEW_CONFIG,
+
+        COUNT
+    };
     struct UiConfig
     {
         std::string window_title;
@@ -53,64 +61,57 @@ public:
         uint        server_port;
     };
 
-    using StartStreamCallback = std::function<void(const UiStreamConfig&)>;
-    using StopStreamCallback = std::function<void()>;
-
-    using StartWebPreviewCallback = std::function<void(const UiStreamConfig&)>;
-    using StopWebPreviewCallback = std::function<void()>;
-
-    using RefreshSourcesCallback = std::function<std::vector<std::string>(UiStreamConfig::CaptureTarget target)>;
+    using StartStopStreamCallback = std::function<void()>;
+    using SourcesUpdateCallback = std::function<void()>;
 
     ApplicationUI() = default;
     ~ApplicationUI() { shutdown(); }
 
-    bool init(const UiConfig& config, const UiStreamConfig& stream_settings);
+    bool render();
+
+    bool init(const UiConfig& config, const UiStreamConfig& stream_config, const UiNetworkConfigRx& config_rx, const UiNetworkConfigTx& config_tx);
     void shutdown();
 
-    bool render();
-    bool refresh_sources();
+    const UiStreamConfig& fetch_stream_config() const { return _stream_config; }
+
+    const UiNetworkConfigRx& fetch_network_rx_config() const { return _network_config_rx; }
+    const UiNetworkConfigTx& fetch_network_tx_config() const { return _network_config_tx; }
+
+    void set_stream_sources(const std::vector<std::string>& sources) { _current_sources = sources; }
 
     void set_web_frame_mem(const cv::Mat& frame) { _web_frame = &frame; }
     void set_loopback_frame_mem(const cv::Mat& frame) { _loopback_frame = &frame; }
 
-    void set_start_stream_callback(StartStreamCallback callback) { _on_start_stream = callback; }
-    void set_stop_stream_callback(StopStreamCallback callback) { _on_stop_stream = callback; }
+    void set_start_stop_stream_callback(StartStopStreamCallback callback) { _start_stop_stream_callback = callback; }
+    void set_sources_update_callback(SourcesUpdateCallback callback) { _sources_update_callback = callback; }
 
-    void set_start_preview_callback(StartWebPreviewCallback callback) { _on_start_preview = callback; }
-    void set_stop_preview_callback(StopWebPreviewCallback callback) { _on_stop_preview = callback; }
-
-    void set_refresh_sources_callback(RefreshSourcesCallback callback) { _on_refresh_sources = callback; }
+    bool is_ui_locked(UiElement el) const { return _locked_ui.test(static_cast<size_t>(el)); }
+    void set_ui_locked(UiElement el, bool is_locked) { _locked_ui.set(static_cast<size_t>(el), is_locked); }
 
 private:
-    struct UiState
-    {
-        bool is_streaming_enabled = false;
-        bool is_web_preview_enabled = false;
-    };
-
     bool render_broadcaster_tab();
     bool render_web_preview_tab();
     bool render_loopback_preview_tab();
 
-    GLFWwindow *            _window = nullptr;
-    GLuint                  _web_frame_texture = 0;
-    GLuint                  _loopback_frame_texture = 0;
+    GLFWwindow *    _window = nullptr;
+    GLuint          _web_frame_texture = 0;
+    GLuint          _loopback_frame_texture = 0;
 
-    const cv::Mat *         _web_frame = nullptr;
-    const cv::Mat *         _loopback_frame = nullptr;
+    const cv::Mat * _web_frame = nullptr;
+    const cv::Mat * _loopback_frame = nullptr;
 
-    StartStreamCallback     _on_start_stream;
-    StopStreamCallback      _on_stop_stream;
-    StartWebPreviewCallback _on_start_preview;
-    StopWebPreviewCallback  _on_stop_preview;
-    RefreshSourcesCallback  _on_refresh_sources;
+    UiStreamConfig  _stream_config;
+    UiStreamConfig  _previous_stream_config;
 
-    UiStreamConfig          _stream_config;
-    UiStreamConfig          _previous_stream_config;
+    UiNetworkConfigRx   _network_config_rx;
+    UiNetworkConfigTx   _network_config_tx;
 
-    UiState                 _ui_state;
+    std::vector<std::string>    _current_sources;
 
-    std::vector<std::string> _current_sources;
+    StartStopStreamCallback     _start_stop_stream_callback;
+    SourcesUpdateCallback       _sources_update_callback;
+
+    std::bitset<static_cast<size_t>(UiElement::COUNT)> _locked_ui;
 };
 
 #endif /* APPLICATION_UI_H_ */

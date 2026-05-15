@@ -39,6 +39,7 @@ endif()
 
 set(APP_SOURCES
     "src/main.cpp"
+    "src/application.cpp"
     "src/capturer/video-capturer.cpp"
     "src/encoder/stream-encoder.cpp"
     "src/decoder/stream-decoder.cpp"
