@@ -97,6 +97,11 @@ bool HwStreamEncoder::first_frame_init(ID3D11Device* device, ID3D11Texture2D* te
     _codec_context->hw_frames_ctx = av_buffer_ref(hw_frames_ref); 
     _codec_context->bit_rate = _config.bitrate_kbps * 1000;
 
+    _codec_context->gop_size = static_cast<int>(_config.fps); 
+    _codec_context->max_b_frames = 0;
+    _codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+    av_opt_set(_codec_context->priv_data, "profile", "main", 0);
     if (StreamCodec::H264_NVEC == _config.codec) 
     {
         av_opt_set(_codec_context->priv_data, "preset", "p1", 0);
@@ -136,6 +141,8 @@ bool HwStreamEncoder::first_frame_init(ID3D11Device* device, ID3D11Texture2D* te
         LOG_ERROR("Failed to allocate output format context, error: %s\n", get_av_error_string(avformat_alloc_err).c_str());
         return false;
     }
+
+    av_opt_set(_format_context->priv_data, "mpegts_flags", "resend_headers", 0);
 
     _video_stream = avformat_new_stream(_format_context, nullptr);
     if (!_video_stream)
