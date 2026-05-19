@@ -9,7 +9,9 @@
 #include <atomic>
 #include <functional>
 
-class VideoCapturer
+#include <utils/non-copyable.h>
+
+class VideoCapturer : NonCopyable
 {
 public:
     enum class Target { DISPLAY, APPLICATION };
@@ -30,9 +32,6 @@ public:
 
     VideoCapturer() = default;
     ~VideoCapturer() { stop(); cleanup_gdi(); }
-
-    VideoCapturer(const VideoCapturer&) = delete;
-    VideoCapturer& operator=(const VideoCapturer&) = delete;
 
     bool start(const CaptureConfig& cap, const OutputConfig& out, FrameCallback callback);
     void stop();

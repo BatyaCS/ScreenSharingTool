@@ -6,8 +6,9 @@
 #include <mutex>
 
 #include <network/srt-defs.h>
+#include <utils/non-copyable.h>
 
-class SrtTransmitter
+class SrtTransmitter : NonCopyable
 {
 public:
     struct NetworkConfig

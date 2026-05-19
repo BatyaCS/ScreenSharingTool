@@ -1,3 +1,6 @@
 [submodule "src/external/vcpkg"]
 	path = src/external/vcpkg
 	url = https://github.com/microsoft/vcpkg.git
+[submodule "src/external/screen_capture_lite"]
+	path = src/external/screen_capture_lite
+	url = https://github.com/BatyaCS/screen_capture_lite.git

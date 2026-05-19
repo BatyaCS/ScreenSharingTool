@@ -1,14 +1,13 @@
 #ifndef SRT_ENVIRONMENT_H_
 #define SRT_ENVIRONMENT_H_
 
-class SrtEnvironment
+#include <utils/non-copyable.h>
+
+class SrtEnvironment : NonCopyable
 {
 public:
     SrtEnvironment();
     ~SrtEnvironment();
-
-    SrtEnvironment(const SrtEnvironment&) = delete;
-    SrtEnvironment& operator=(const SrtEnvironment&) = delete;
 };
 
 #endif /* SRT_ENVIRONMENT_H_ */
