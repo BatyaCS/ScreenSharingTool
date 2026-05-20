@@ -40,10 +40,10 @@ public:
         CaptureTarget   capture_target;
         StreamTarget    stream_target;
 
+        std::string     source;
+
         uint            target_fps;
         uint            target_br_kbps;
-
-        uint            source_idx = 0;
     };
     struct UiNetworkConfigTx
     {
@@ -74,12 +74,11 @@ public:
     bool init(const UiConfig& config, const UiStreamConfig& stream_config, const UiNetworkConfigRx& config_rx, const UiNetworkConfigTx& config_tx);
     void shutdown();
 
-    const UiStreamConfig& fetch_stream_config() const { return _stream_config; }
-
     const UiNetworkConfigRx& fetch_network_rx_config() const { return _network_config_rx; }
     const UiNetworkConfigTx& fetch_network_tx_config() const { return _network_config_tx; }
 
-    void set_stream_sources(const std::vector<std::string>& sources) { _current_sources = sources; }
+    const UiStreamConfig& fetch_stream_config() const { return _stream_config; }
+    void set_stream_sources(const std::vector<std::string>& sources) { _current_sources = sources; _selected_source = 0; _stream_config.source = sources[0]; }
 
     void set_web_frame_mem(const cv::Mat& frame) { _web_frame = &frame; }
     void set_loopback_frame_mem(const cv::Mat& frame) { _loopback_frame = &frame; }
@@ -129,14 +128,15 @@ private:
     UiNetworkConfigTx   _network_config_tx;
 
     std::vector<std::string>    _current_sources;
-    std::vector<LogEntry>       _logs;
-
+    uint                        _selected_source = 0;
+   
     StartStopStreamCallback     _start_stop_stream_callback;
     StartStopRxCallback         _start_stop_rx_callback;
     SourcesUpdateCallback       _sources_update_callback;
 
     std::bitset<static_cast<size_t>(UiElement::COUNT)> _locked_ui;
 
+    std::vector<LogEntry>       _logs;
     bool _scroll_to_bottom = false;
 };
 

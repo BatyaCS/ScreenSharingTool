@@ -2,10 +2,14 @@
 #define APPLICATION_H_
 
 #include <ui/application-ui.h>
-#include <capturer/video-capturer.h>
-#include <encoder/stream-encoder.h>
-#include <decoder/stream-decoder.h>
 #include <network/srt-transmitter.h>
+
+#include <capturer/hw-video-capturer.h>
+#include <encoder/hw-stream-encoder.h>
+
+// #include <capturer/video-capturer.h>
+// #include <encoder/stream-encoder.h>
+// #include <decoder/stream-decoder.h>
 
 #include <mutex>
 #include <fstream>
@@ -25,9 +29,13 @@ public:
     void run();
 
 private:
-    using VideoSources = std::vector<void*>;
+    // using VideoSources = std::vector<void*>;
 
-    void handle_capturer_frame_received(const cv::Mat& frame);
+    bool start_streaming();
+    void stop_streaming();
+
+    void handle_frame_captured(ID3D11Texture2D* tex, ID3D11Device* dev);
+    // void handle_capturer_frame_received(const cv::Mat& frame);
 
     // UI Handlers
     void handle_start_stop_stream();
@@ -36,12 +44,16 @@ private:
 
     ApplicationUI   _ui;
 
-    VideoCapturer   _capturer;
-    VideoSources    _video_sources;
+    HwVideoCapturer _capturer;
+    HwStreamEncoder _encoder;
 
-    StreamEncoder   _encoder;
-    StreamDecoder   _decoder;
-    SrtTransmitter       _srt_sender;
+    // VideoCapturer   _capturer;
+    // VideoSources    _video_sources;
+
+    // StreamEncoder   _encoder;
+    // StreamDecoder   _decoder;
+
+    SrtTransmitter  _srt_sender;
 
     cv::Mat         _web_frame;
     cv::Mat         _web_frame_tmp;

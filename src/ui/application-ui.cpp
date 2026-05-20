@@ -245,8 +245,8 @@ void ApplicationUI::render_capture_settings()
     ImGui::Text("Capture Source / Stream Target");
     ImGui::Spacing();
 
-    ImGui::RadioButton("Monitor", reinterpret_cast<int*>(&_stream_config.capture_target), 0); ImGui::SameLine();
-    ImGui::RadioButton("Application", reinterpret_cast<int*>(&_stream_config.capture_target), 1);
+    ImGui::RadioButton("Monitor", reinterpret_cast<int*>(&_stream_config.capture_target), 0); 
+    // ImGui::SameLine(); ImGui::RadioButton("Application", reinterpret_cast<int*>(&_stream_config.capture_target), 1);
 
     ImGui::RadioButton("WebSRT", reinterpret_cast<int*>(&_stream_config.stream_target), 0); ImGui::SameLine();
     ImGui::RadioButton("Loopback", reinterpret_cast<int*>(&_stream_config.stream_target), 1);
@@ -260,15 +260,18 @@ void ApplicationUI::render_capture_settings()
     }
 
     const std::string combo_label = (_stream_config.capture_target == UiStreamConfig::CaptureTarget::DISPLAY) ? "Select Display" : "Select Window";
-    const std::string preview_value = _current_sources.empty() ? "None found" : _current_sources[_stream_config.source_idx];
+    const std::string preview_value = _current_sources.empty() ? "None found" : _current_sources[_selected_source];
     
     if (ImGui::BeginCombo(combo_label.c_str(), preview_value.c_str()))
     {
         for (uint idx = 0; idx < _current_sources.size(); idx++)
         {
-            const bool is_selected = _stream_config.source_idx == idx;
+            const bool is_selected = _selected_source == idx;
             if (ImGui::Selectable(_current_sources[idx].c_str(), is_selected))
-                _stream_config.source_idx = idx;
+            {
+                _stream_config.source = _current_sources[idx];
+                _selected_source = idx;
+            }
 
             if (is_selected) 
                 ImGui::SetItemDefaultFocus();

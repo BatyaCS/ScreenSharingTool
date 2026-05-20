@@ -46,6 +46,10 @@ add_subdirectory(src/external/screen_capture_lite)
 set(APP_SOURCES
     "src/main.cpp"
     "src/application.cpp"
+
+    "src/capturer/hw-video-capturer.cpp"
+    "src/encoder/hw-stream-encoder.cpp"
+
     "src/capturer/video-capturer.cpp"
     "src/encoder/stream-encoder.cpp"
     "src/decoder/stream-decoder.cpp"
