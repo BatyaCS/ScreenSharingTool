@@ -49,10 +49,12 @@ set(APP_SOURCES
 
     "src/capturer/hw-video-capturer.cpp"
     "src/encoder/hw-stream-encoder.cpp"
+    "src/decoder/hw-stream-decoder.cpp"
 
-    "src/capturer/video-capturer.cpp"
-    "src/encoder/stream-encoder.cpp"
-    "src/decoder/stream-decoder.cpp"
+    # "src/capturer/video-capturer.cpp"
+    # "src/encoder/stream-encoder.cpp"
+    # "src/decoder/stream-decoder.cpp"
+    
     "src/ui/application-ui.cpp"
     
     "src/network/srt-receiver.cpp"
