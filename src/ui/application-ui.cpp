@@ -263,18 +263,22 @@ void ApplicationUI::render_encoding_settings()
 
 void ApplicationUI::render_network_tx_settings()
 {
-    InputTextString("Server IP##tx", _network_config_tx.server_ip);
-    ImGui::InputInt("Server Port##tx", reinterpret_cast<int*>(&_network_config_tx.server_port));
-    InputTextString("Stream ID##tx", _network_config_tx.stream_id);
-    InputTextString("Password##tx", _network_config_tx.stream_pwd, ImGuiInputTextFlags_Password);
+    InputTextString("Stream ID", _network_config_tx.stream_id);
+    InputTextString("User Name", _network_config_tx.user_name);
+    InputTextString("User Pwd", _network_config_tx.user_pwd, ImGuiInputTextFlags_Password);
+    InputTextString("SRT Passphrase", _network_config_tx.srt_passphrase, ImGuiInputTextFlags_Password);
+    InputTextString("Server IP", _network_config_tx.server_ip);
+    ImGui::InputInt("Server Port", reinterpret_cast<int*>(&_network_config_tx.server_port));
 }
 
 void ApplicationUI::render_network_rx_settings()
 {
-    InputTextString("Server IP##rx", _network_config_rx.server_ip);
-    ImGui::InputInt("Server Port##rx", reinterpret_cast<int*>(&_network_config_rx.server_port));
-    InputTextString("Stream ID##rx", _network_config_rx.stream_id);
-    InputTextString("Password##rx", _network_config_rx.stream_pwd, ImGuiInputTextFlags_Password);
+    InputTextString("Stream ID", _network_config_rx.stream_id);
+    InputTextString("User Name", _network_config_rx.user_name);
+    InputTextString("User Pwd", _network_config_rx.user_pwd, ImGuiInputTextFlags_Password);
+    InputTextString("SRT Passphrase", _network_config_rx.srt_passphrase, ImGuiInputTextFlags_Password);
+    InputTextString("Server IP", _network_config_rx.server_ip);
+    ImGui::InputInt("Server Port", reinterpret_cast<int*>(&_network_config_rx.server_port));
 }
 
 void ApplicationUI::render_log_window()

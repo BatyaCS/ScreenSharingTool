@@ -17,7 +17,7 @@ public:
         SrtLatePktDrop  packet_drop = SrtLatePktDrop::ENABLE;
 
         std::string     stream_id;
-        std::string     stream_pdw;
+        std::string     pass_phrase;
 
         std::string     ip;
         uint            port;

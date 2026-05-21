@@ -28,19 +28,21 @@ bool SrtReceiver::open_connection(const NetworkConfig& config)
 
     srt_setsockopt(_socket, 0, SRTO_STREAMID, config.stream_id.c_str(), static_cast<int>(config.stream_id.length()));
     
-    if (!config.stream_pwd.empty()) 
+    if (!config.pass_phrase.empty()) 
     {
-        const int key_len = static_cast<int>(config.encryption);
-        const int pwd_len = static_cast<int>(config.stream_pwd.length());
-        
-        if (pwd_len > key_len)
+        static constexpr size_t PWD_MIN_LEN = 10;
+        static constexpr size_t PWD_MAX_LEN = 79;
+
+        const int pass_phrase_len = static_cast<int>(config.pass_phrase.length());
+        if (pass_phrase_len < PWD_MIN_LEN || pass_phrase_len > PWD_MAX_LEN)
         {
-            LOG_ERROR("Incorrect password length is set to open connection!\n");
+            LOG_ERROR("SRT passphrase must be between %llu and %llu characters!\n", PWD_MIN_LEN, PWD_MAX_LEN);
             return false;
         }
         
+        const int key_len = static_cast<int>(config.encryption);
         srt_setsockopt(_socket, 0, SRTO_PBKEYLEN, &key_len, sizeof(key_len));
-        srt_setsockopt(_socket, 0, SRTO_PASSPHRASE, config.stream_pwd.c_str(), pwd_len);
+        srt_setsockopt(_socket, 0, SRTO_PASSPHRASE, config.pass_phrase.c_str(), pass_phrase_len);
     }
 
     const int buf_size = static_cast<int>(config.buffer_size);

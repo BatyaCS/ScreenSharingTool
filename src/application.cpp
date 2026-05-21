@@ -26,16 +26,20 @@ static const ApplicationUI::UiStreamConfig default_ui_stream_cfg =
 
 static const ApplicationUI::UiNetworkConfigRx default_ui_network_config_rx = 
 {
-    .stream_id = "read:mystream",
-    .stream_pwd = "",
+    .stream_id = "mystream",
+    .user_name = "viewer",
+    .user_pwd = "",
+    .srt_passphrase = "",
     .server_ip = "",
     .server_port = 8890
 };
 
 static const ApplicationUI::UiNetworkConfigTx default_ui_network_config_tx = 
 {
-    .stream_id = "publish:mystream",
-    .stream_pwd = "",
+    .stream_id = "mystream",
+    .user_name = "streamer",
+    .user_pwd = "",
+    .srt_passphrase = "",
     .server_ip = "",
     .server_port = 8890
 };
@@ -134,11 +138,16 @@ bool Application::start_streaming()
         _encoder.init(enc_cfg);
 
         const ApplicationUI::UiNetworkConfigTx& network_cfg_tx = _ui.fetch_network_tx_config();
+        const std::string stream_id = std::format("publish:{}:{}:{}", 
+                                                network_cfg_tx.stream_id,
+                                                network_cfg_tx.user_name, 
+                                                network_cfg_tx.user_pwd);
+        
         SrtTransmitter::NetworkConfig network_cfg;
         network_cfg.ip = network_cfg_tx.server_ip;
         network_cfg.port = network_cfg_tx.server_port;
-        network_cfg.stream_id = network_cfg_tx.stream_id;
-        network_cfg.stream_pdw = network_cfg_tx.stream_pwd;
+        network_cfg.pass_phrase = network_cfg_tx.srt_passphrase;
+        network_cfg.stream_id = stream_id;
 
         if (!_srt_sender.open_connection(network_cfg))
         {
@@ -194,13 +203,18 @@ bool Application::start_preview()
     const ApplicationUI::UiNetworkConfigRx& rx_cfg = _ui.fetch_network_rx_config();    
     _ui.log(std::format("Starting Rx preview on {}:{}", rx_cfg.server_ip, rx_cfg.server_port));
 
-    SrtReceiver::NetworkConfig srt_cfg;
-    srt_cfg.ip = rx_cfg.server_ip;
-    srt_cfg.port = rx_cfg.server_port;
-    srt_cfg.stream_id = rx_cfg.stream_id;
-    srt_cfg.stream_pwd = rx_cfg.stream_pwd;
+        const std::string stream_id = std::format("read:{}:{}:{}", 
+                                                rx_cfg.stream_id,
+                                                rx_cfg.user_name, 
+                                                rx_cfg.user_pwd);
+        
+        SrtReceiver::NetworkConfig network_cfg;
+        network_cfg.ip = rx_cfg.server_ip;
+        network_cfg.port = rx_cfg.server_port;
+        network_cfg.pass_phrase = rx_cfg.srt_passphrase;
+        network_cfg.stream_id = stream_id;
 
-    if (!_srt_receiver.open_connection(srt_cfg))
+    if (!_srt_receiver.open_connection(network_cfg))
     {
         _ui.log_err("Failed to open SRT Receiver connection!");
         return false;

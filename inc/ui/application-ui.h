@@ -51,7 +51,10 @@ public:
     struct UiNetworkConfigTx
     {
         std::string stream_id;
-        std::string stream_pwd;
+        std::string user_name;
+        std::string user_pwd;
+
+        std::string srt_passphrase;
 
         std::string server_ip;
         uint        server_port;
@@ -59,7 +62,10 @@ public:
     struct UiNetworkConfigRx
     {
         std::string stream_id;
-        std::string stream_pwd;
+        std::string user_name;
+        std::string user_pwd;
+
+        std::string srt_passphrase;
 
         std::string server_ip;
         uint        server_port;
