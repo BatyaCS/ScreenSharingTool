@@ -1,4 +1,4 @@
-// #define TRACE_ME
+#define TRACE_ME
 
 #include <common.h>
 #include <app/application.h>
@@ -8,8 +8,6 @@
 
 #include <thread>
 #include <chrono>
-
-// std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
 static const ApplicationUI::UiConfig default_ui_config = 
 {
@@ -30,7 +28,7 @@ static const ApplicationUI::UiNetworkConfigRx default_ui_network_config_rx =
 {
     .stream_id = "read:mystream",
     .stream_pwd = "",
-    .server_ip = "185.198.166.86",
+    .server_ip = "",
     .server_port = 8890
 };
 
@@ -38,10 +36,9 @@ static const ApplicationUI::UiNetworkConfigTx default_ui_network_config_tx =
 {
     .stream_id = "publish:mystream",
     .stream_pwd = "",
-    .server_ip = "185.198.166.86",
+    .server_ip = "",
     .server_port = 8890
 };
-
 
 bool Application::init()
 {
@@ -270,7 +267,12 @@ void Application::handle_frame_captured(ID3D11Texture2D* tex, ID3D11Device* dev)
             return stop_streaming();
         
         if (!mpegts_data.empty())
+        {
+            LTRACE("Send MPEGTS data: %u bytes!\n", mpegts_data.size());
             _srt_sender.send(mpegts_data);
+        }
+        else
+            LTRACE("MPEGTS data is empty!\n");
     }
 }
 
@@ -415,7 +417,7 @@ void Application::srt_rx_loop()
         {
             LTRACE("Push SRT data into incoder, size: %u\n", rx_data.size());
 
-            _decoder.push_data(rx_data);
+            // _decoder.push_data(rx_data);
             continue;
         }
         
