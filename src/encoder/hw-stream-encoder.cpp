@@ -104,7 +104,10 @@ bool HwStreamEncoder::first_frame_init(ID3D11Device* device, ID3D11Texture2D* te
 
     _codec_context->gop_size = static_cast<int>(_config.fps); 
     _codec_context->max_b_frames = 0;
-    // _codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+    // force send headers within frames group (gop_size)
+    _codec_context->flags |= AV_CODEC_FLAG_CLOSED_GOP;
+    _codec_context->flags &= ~AV_CODEC_FLAG_GLOBAL_HEADER;
 
     av_opt_set(_codec_context->priv_data, "profile", "main", 0);
     if (StreamCodec::H264_NVEC == _config.codec) 
@@ -116,7 +119,9 @@ bool HwStreamEncoder::first_frame_init(ID3D11Device* device, ID3D11Texture2D* te
     else if (StreamCodec::H264_AMF == _config.codec) 
     {
         av_opt_set(_codec_context->priv_data, "quality", "speed", 0); 
-        av_opt_set(_codec_context->priv_data, "usage", "ultralowlatency", 0); 
+
+        // ultralowlatency set encoder send headers only one time at start, should not be used with SRT
+        // av_opt_set(_codec_context->priv_data, "usage", "ultralowlatency", 0); 
     }
     else if (StreamCodec::H264_QSV == _config.codec) 
         av_opt_set(_codec_context->priv_data, "preset", "veryfast", 0);
