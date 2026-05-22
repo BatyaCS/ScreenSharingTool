@@ -53,6 +53,9 @@ bool SrtReceiver::open_connection(const NetworkConfig& config)
 
     const int latency_ms = static_cast<int>(config.stream_latency_ms);
     srt_setsockopt(_socket, 0, SRTO_LATENCY, &latency_ms, sizeof(latency_ms));
+
+    const int rcv_timeout_ms = config.receive_timeout_ms;
+    srt_setsockopt(_socket, 0, SRTO_RCVTIMEO, &rcv_timeout_ms, sizeof(rcv_timeout_ms));
     
     sockaddr_in sa{};
         
