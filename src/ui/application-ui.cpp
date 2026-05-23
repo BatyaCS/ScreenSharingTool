@@ -242,9 +242,8 @@ void ApplicationUI::render_log_window(AppViewModel& view)
     ImGui::Text("Application Logs");
     ImGui::SameLine();
     if (ImGui::SmallButton("Clear")) 
-    { 
-        // TODO: add callback for logs clearing 
-    }
+        if (_clear_logs_callback) 
+            _clear_logs_callback();
 
     ImGui::BeginChild("LogScrollingRegion", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1)); 

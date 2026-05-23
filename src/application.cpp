@@ -71,6 +71,7 @@ bool Application::init()
     _ui.set_start_stop_stream_callback([this]() { this->handle_start_stop_stream(); });
     _ui.set_start_stop_rx_callback([this]() { this->handle_start_stop_preview(); });
     _ui.set_sources_update_callback([this]() { this->handle_sources_update(); });
+    _ui.set_clear_logs_callback([this]() { this->handle_logs_clear_request(); });
 
     _model.stream_config = default_ui_stream_cfg;
     _model.network_tx = default_ui_network_config_tx;
@@ -465,6 +466,12 @@ void Application::handle_sources_update()
         for (const auto& m : monitors)
             cfg.capture_sources.push_back(m.Name);
     }
+}
+
+void Application::handle_logs_clear_request()
+{
+    std::lock_guard<std::mutex> lock(_model.logs_mutex);
+    _model.logs.clear();
 }
 
 void Application::srt_rx_loop()

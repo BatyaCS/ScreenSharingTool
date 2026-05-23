@@ -20,6 +20,7 @@ public:
     using StartStopStreamCallback = std::function<void()>;
     using StartStopRxCallback = std::function<void()>;
     using SourcesUpdateCallback = std::function<void()>;
+    using ClearLogsCallback = std::function<void()>;
 
     ApplicationUI() = default;
     ~ApplicationUI() { shutdown(); }
@@ -35,6 +36,7 @@ public:
     void set_start_stop_stream_callback(StartStopStreamCallback callback) { _start_stop_stream_callback = callback; }
     void set_start_stop_rx_callback(StartStopRxCallback callback) { _start_stop_rx_callback = callback; }
     void set_sources_update_callback(SourcesUpdateCallback callback) { _sources_update_callback = callback; }
+    void set_clear_logs_callback(ClearLogsCallback callback) { _clear_logs_callback = callback; }
 
 private:
     bool render_broadcaster_tab(AppViewModel& view);
@@ -63,6 +65,7 @@ private:
     StartStopStreamCallback     _start_stop_stream_callback;
     StartStopRxCallback         _start_stop_rx_callback;
     SourcesUpdateCallback       _sources_update_callback;
+    ClearLogsCallback           _clear_logs_callback;
 
     bool                        _scroll_to_bottom = false;
 };

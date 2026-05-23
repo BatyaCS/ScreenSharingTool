@@ -25,8 +25,9 @@ public:
 
     bool init();
     void cleanup();
-
     void run();
+
+    AppViewModel& get_view_model() { return _model; }
 
 private:
     bool start_streaming();
@@ -44,6 +45,7 @@ private:
     void handle_start_stop_stream();
     void handle_start_stop_preview();
     void handle_sources_update();
+    void handle_logs_clear_request();
 
     void srt_rx_loop();
 
