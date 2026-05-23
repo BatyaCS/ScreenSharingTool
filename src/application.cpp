@@ -1,4 +1,4 @@
-#define TRACE_ME
+// #define TRACE_ME
 
 #include <common.h>
 #include <app/application.h>
@@ -231,13 +231,13 @@ bool Application::start_preview()
         return false;
     }
 
+    _ui.log("Video Preview (Rx) started\n");
+    _ui.set_ui_locked(ApplicationUI::UiElement::RX_CONFIG, true);
+    _is_preview_enabled = true;
+
     _is_rx_running = true;
     _rx_thread = std::thread(&Application::srt_rx_loop, this);
 
-    _ui.log("Video Preview (Rx) started\n");
-    _ui.set_ui_locked(ApplicationUI::UiElement::RX_CONFIG, true);
-    
-    _is_preview_enabled = true;
     return true;
 }
 
@@ -283,7 +283,9 @@ void Application::handle_frame_captured(ID3D11Texture2D* tex, ID3D11Device* dev)
         if (!mpegts_data.empty())
         {
             LTRACE("Send MPEGTS data: %u bytes!\n", mpegts_data.size());
-            _srt_sender.send(mpegts_data);
+            
+            if (!_srt_sender.send(mpegts_data))
+                return stop_streaming();
         }
         else
             LTRACE("MPEGTS data is empty!\n");
@@ -298,6 +300,8 @@ void Application::handle_frame_received(ID3D11Texture2D* tex, ID3D11Device* dev)
     D3D11_TEXTURE2D_DESC desc;
     tex->GetDesc(&desc);
 
+    LOG("SRT Frame received width:%u, height:%u!\n", desc.Width, desc.Height);
+
     D3D11_TEXTURE2D_DESC ui_desc = desc;
     ui_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE; 
     ui_desc.Usage = D3D11_USAGE_DEFAULT;
@@ -306,9 +310,12 @@ void Application::handle_frame_received(ID3D11Texture2D* tex, ID3D11Device* dev)
     ui_desc.ArraySize = 1; 
 
     ID3D11Texture2D* ui_texture = nullptr;
-    HRESULT hr = dev->CreateTexture2D(&ui_desc, nullptr, &ui_texture);
-    if (FAILED(hr)) 
-        return; 
+    const HRESULT hr_tex = dev->CreateTexture2D(&ui_desc, nullptr, &ui_texture);
+    if (FAILED(hr_tex)) 
+    {
+        LOG_ERROR("Failed to create 2D D3D11 texture!\n");
+        return;
+    }
 
     ID3D11DeviceContext* ctx = nullptr;
     dev->GetImmediateContext(&ctx);
@@ -318,13 +325,22 @@ void Application::handle_frame_received(ID3D11Texture2D* tex, ID3D11Device* dev)
         ctx->Release();
     }
 
+    D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+    srv_desc.Format = DXGI_FORMAT_R8_UNORM; // Читаем только канал яркости (Y-plane)
+    srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srv_desc.Texture2D.MostDetailedMip = 0;
+    srv_desc.Texture2D.MipLevels = 1;
+
     ID3D11ShaderResourceView* new_srv = nullptr;
-    hr = dev->CreateShaderResourceView(ui_texture, nullptr, &new_srv);
+    const HRESULT hr = dev->CreateShaderResourceView(ui_texture, &srv_desc, &new_srv);
     
     ui_texture->Release(); 
 
-    if (FAILED(hr)) 
-        return; 
+    if (FAILED(hr) || nullptr == new_srv) 
+    {
+        LOG_ERROR("Failed to create shader resource view!\n");
+        return;
+    }
 
     {
         std::lock_guard<std::mutex> lock(_preview_mutex);
@@ -429,12 +445,12 @@ void Application::srt_rx_loop()
     {
         if (_srt_receiver.receive(rx_data) && !rx_data.empty())
         {
-            LTRACE("Push SRT data into incoder, size: %u\n", rx_data.size());
+            LTRACE("Push SRT data into decoder, size: %u\n", rx_data.size());
 
-            // _decoder.push_data(rx_data);
+            _decoder.push_data(rx_data);
             continue;
         }
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }

@@ -1,3 +1,5 @@
+// #define TRACE_ME
+
 #include <common.h>
 #include <decoder/hw-stream-decoder.h>
 
@@ -79,10 +81,8 @@ void HwStreamDecoder::release()
 
 void HwStreamDecoder::push_data(const std::vector<uint8_t>& data)
 {
-    if (data.empty()) 
-        return;
-
     std::lock_guard<std::mutex> lock(_buffer_mutex);
+
     _stream_buffer.insert(_stream_buffer.end(), data.begin(), data.end());
     _buffer_cv.notify_one();
 }
@@ -99,6 +99,7 @@ int HwStreamDecoder::read_data(uint8_t * buf, int buf_size)
     std::memcpy(buf, _stream_buffer.data(), to_copy);
     _stream_buffer.erase(_stream_buffer.begin(), _stream_buffer.begin() + to_copy);
     
+    LTRACE("AV decoder takes some data, size: %d!\n", to_copy);
     return to_copy;
 }
 
@@ -125,7 +126,8 @@ void HwStreamDecoder::decode_loop()
     _format_context->pb = _avio_context;
     _format_context->flags |= AVFMT_FLAG_CUSTOM_IO;
 
-    int ret = avformat_open_input(&_format_context, nullptr, nullptr, nullptr);
+    const AVInputFormat* input_fmt = av_find_input_format("mpegts");
+    int ret = avformat_open_input(&_format_context, nullptr, input_fmt, nullptr);
     if (ret < 0) 
         DECODER_ABORT("Failed to open input stream: %s!\n", get_av_error_string(ret).c_str());
 
@@ -176,6 +178,7 @@ void HwStreamDecoder::decode_loop()
 
         _video_codec_context->hw_device_ctx = av_buffer_ref(_hw_device_ctx);
         _video_codec_context->get_format = get_hw_format;
+        _video_codec_context->extra_hw_frames = 10; // TODO: to get more surfaces for AMF, need to recheck
 
         ret = avcodec_open2(_video_codec_context, video_codec, nullptr);
         if (ret < 0)
@@ -211,7 +214,10 @@ void HwStreamDecoder::decode_loop()
             if (ret == AVERROR_EOF)
                 DECODER_ABORT("End of stream reached (Network disconnected)!\n");
             else
-                DECODER_ABORT("Failed to read frame from input: %s!\n", get_av_error_string(ret).c_str());
+            {
+                LOG_ERROR("Warning: Failed to read frame: %s!\n", get_av_error_string(ret).c_str());
+                continue; 
+            }
         }
 
         // VIDEO Packet
@@ -219,43 +225,50 @@ void HwStreamDecoder::decode_loop()
         {
             ret = avcodec_send_packet(_video_codec_context, _packet);
             if (ret < 0)
-                DECODER_ABORT("Error sending video packet for decoding: %s!\n", get_av_error_string(ret).c_str());
-            
-            while (true)
+                LOG_ERROR("Warning: Dropped video packet: %s\n", get_av_error_string(ret).c_str());
+            else
             {
-                ret = avcodec_receive_frame(_video_codec_context, _frame);
-                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) 
-                    break;
-                else if (ret < 0) 
-                    DECODER_ABORT("Error during video decoding: %s!\n", get_av_error_string(ret).c_str());
+                while (true)
+                {
+                    ret = avcodec_receive_frame(_video_codec_context, _frame);
+                    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) 
+                        break;
+                    else if (ret < 0) 
+                    {
+                        LOG_ERROR("Warning: Decode error: %s\n", get_av_error_string(ret).c_str());
+                        break;
+                    }
 
-                ID3D11Texture2D* tex = reinterpret_cast<ID3D11Texture2D*>(_frame->data[0]);
-                if (_video_callback && tex)
-                    _video_callback(tex, _d3d11_device);
-                
-                av_frame_unref(_frame);
+                    if (_frame->format == AV_PIX_FMT_D3D11)
+                    {
+                        ID3D11Texture2D* tex = reinterpret_cast<ID3D11Texture2D*>(_frame->data[0]);
+                        if (_video_callback && tex)
+                            _video_callback(tex, _d3d11_device);
+                    }
+                    else
+                        LOG_ERROR("Warning: Received software frame instead of D3D11! Skipping...\n");
+                    
+                    av_frame_unref(_frame);
+                }
             }
         }
         // AUDIO Packet
         else if (_packet->stream_index == _audio_stream_idx && _audio_codec_context)
         {
             ret = avcodec_send_packet(_audio_codec_context, _packet);
-            if (ret < 0)
-                DECODER_ABORT("Error sending audio packet for decoding: %s!\n", get_av_error_string(ret).c_str());
-            
-            while (true)
+            if (ret >= 0)
             {
-                ret = avcodec_receive_frame(_audio_codec_context, _frame);
-                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) 
-                    break;
-                else if (ret < 0) 
-                    DECODER_ABORT("Error during audio decoding: %s!\n", get_av_error_string(ret).c_str());
+                while (true)
+                {
+                    ret = avcodec_receive_frame(_audio_codec_context, _frame);
+                    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) break;
+                    else if (ret < 0) break;
 
-                // Trigger audio callback and pass the decoded AVFrame containing PCM samples
-                if (_audio_callback)
-                    _audio_callback(_frame);
-                
-                av_frame_unref(_frame);
+                    if (_audio_callback)
+                        _audio_callback(_frame);
+                    
+                    av_frame_unref(_frame);
+                }
             }
         }
         

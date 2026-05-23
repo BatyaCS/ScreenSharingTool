@@ -10,6 +10,8 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 
+#include <d3d11_4.h>
+
 static bool InputTextString(const char* label, std::string& str, ImGuiInputTextFlags flags = 0) 
 {
     char buf[256];
@@ -50,6 +52,16 @@ bool ApplicationUI::init(const UiConfig& config, const UiStreamConfig& stream_co
         glfwDestroyWindow(_window);
         glfwTerminate();
         return false;
+    }
+
+
+    // Use multithread protection since pd3dDevice used by HwDecoder
+    ID3D11Multithread * multithread = nullptr;
+    const HRESULT hr = _pd3dDevice->QueryInterface(__uuidof(ID3D11Multithread), (void**)&multithread);
+    if (SUCCEEDED(hr) && multithread)
+    {
+        multithread->SetMultithreadProtected(TRUE); 
+        multithread->Release();
     }
 
     IMGUI_CHECKVERSION();
