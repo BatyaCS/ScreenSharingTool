@@ -1,6 +1,5 @@
 #include <common.h>
 #include <ui/application-ui.h>
-#include <ui/ui-helpers.h>
 #include <graphics/graphics-context.h>
 
 #include <imgui.h>
@@ -138,7 +137,8 @@ bool ApplicationUI::render_broadcaster_tab(AppViewModel& view)
     ImGui::BeginChild("LoopbackPreviewRegion", ImVec2(0, 0), true);
     ImGui::SeparatorText("Loopback Preview");
 
-    _loopback_preview_widget.render(_loopback_srv, _loopback_w, _loopback_h, 0.0f);
+    const AppViewModel::FrameSize size = view.loopback_frame_size.load();
+    _loopback_preview_widget.render(view.loopback_texture.get_texture(), size.width, size.height, 0.0f);
     
     ImGui::EndChild();
 
@@ -169,7 +169,9 @@ bool ApplicationUI::render_web_preview_tab(AppViewModel& view)
     }
 
     ImGui::SeparatorText("Live Stream");
-    _web_preview_widget.render(_web_srv, _web_w, _web_h, 0.0f);
+
+    const AppViewModel::FrameSize size = view.preview_frame_size.load();
+    _loopback_preview_widget.render(view.preview_texture.get_texture(), size.width, size.height, 0.0f);
 
     return true;
 }

@@ -96,8 +96,6 @@ void Application::run()
     handle_sources_update();
     bool running = true;
 
-    LOG("Application started!\n");
-
     while (!glfwWindowShouldClose(_window))
     {
         glfwPollEvents();
@@ -118,29 +116,15 @@ void Application::run()
             }
         }
 
-        {
-            std::lock_guard<std::mutex> lock(_loopback_mutex);
-            _ui.set_loopback_texture(reinterpret_cast<void*>(_current_loopback_srv), _loopback_w, _loopback_h);
-        }
+        const AppViewModel::FrameSize loopback_size = _model.loopback_frame_size.load();
+        if (loopback_size.width > 0 && loopback_size.height > 0)
+            _model.loopback_texture.resize(_gfx.get_device(), loopback_size.width, loopback_size.height);
 
-        {
-            std::lock_guard<std::mutex> lock(_preview_mutex);
-            _ui.set_web_texture(reinterpret_cast<void*>(_current_preview_srv), _preview_w, _loopback_h);
-        }
+        const AppViewModel::FrameSize preview_size = _model.preview_frame_size.load();
+        if (preview_size.width > 0 && preview_size.height > 0)
+            _model.preview_texture.resize(_gfx.get_device(), preview_size.width, preview_size.height);
 
         _ui.render(_model);
-
-        if (_loopback_srv_to_release)
-        {
-            _loopback_srv_to_release->Release();
-            _loopback_srv_to_release = nullptr;
-        }
-
-        if (_preview_srv_to_release)
-        {
-            _preview_srv_to_release->Release();
-            _preview_srv_to_release = nullptr;
-        }
     }
 }
 
@@ -164,19 +148,8 @@ bool Application::start_streaming()
         enc_cfg.bitrate_kbps = stream_cfg.target_br_kbps;
         _encoder.init(enc_cfg);
 
-        const AppViewModel::NetworkConfigTx& network_cfg_tx = _model.network_tx;
-        const std::string stream_id = std::format("publish:{}:{}:{}", 
-                                                network_cfg_tx.stream_id,
-                                                network_cfg_tx.user_name, 
-                                                network_cfg_tx.user_pwd);
-        
-        SrtTransmitter::NetworkConfig network_cfg;
-        network_cfg.ip = network_cfg_tx.server_ip;
-        network_cfg.port = network_cfg_tx.server_port;
-        network_cfg.pass_phrase = network_cfg_tx.srt_passphrase;
-        network_cfg.stream_id = stream_id;
-
-        if (!_srt_sender.open_connection(network_cfg))
+        const SrtTransmitter::NetworkConfig cfg = to_srt_network_cfg(_model.network_tx);
+        if (!_srt_sender.open_connection(cfg))
         {
             LOG_ERROR("Failed to initialize SRT Sender!\n");
             stop_streaming();
@@ -202,36 +175,14 @@ void Application::stop_streaming()
     _capturer.stop();
     _encoder.release();
     _srt_sender.close_connection();
-
-    {
-        std::lock_guard<std::mutex> lock(_loopback_mutex);
-        
-        if (_current_loopback_srv) 
-        {
-            _loopback_srv_to_release = _current_loopback_srv; 
-            _current_loopback_srv = nullptr; 
-        }
-
-        _loopback_h = 0;
-        _loopback_w = 0;
-    }
     
     LOG("Video Streaming stopped\n");
 }
 
 bool Application::start_preview()
 {
-    const AppViewModel::NetworkConfigRx& rx_cfg = _model.network_rx;
-    LOG("Starting Rx preview on %s:%u!\n", rx_cfg.server_ip.c_str(), rx_cfg.server_port);
-
-    const std::string stream_id = std::format("read:{}:{}:{}", rx_cfg.stream_id, rx_cfg.user_name, rx_cfg.user_pwd);
-    SrtReceiver::NetworkConfig network_cfg;
-    network_cfg.ip = rx_cfg.server_ip;
-    network_cfg.port = rx_cfg.server_port;
-    network_cfg.pass_phrase = rx_cfg.srt_passphrase;
-    network_cfg.stream_id = stream_id;
-
-    if (!_srt_receiver.open_connection(network_cfg))
+    const SrtReceiver::NetworkConfig cfg = to_srt_network_cfg(_model.network_rx);
+    if (!_srt_receiver.open_connection(cfg))
     {
         LOG_ERROR("Failed to open SRT Receiver connection!\n");
         return false;
@@ -251,7 +202,7 @@ bool Application::start_preview()
     _is_rx_running = true;
     _rx_thread = std::thread(&Application::srt_rx_loop, this);
 
-    LOG("Video Preview (Rx) started\n");
+    LOG("Starting RX preview on %s:%u!\n", cfg.ip.c_str(), cfg.port);
     return true;
 }
 
@@ -263,18 +214,6 @@ void Application::stop_preview()
 
     _srt_receiver.close_connection();
     _decoder.release();
-
-    {
-        std::lock_guard<std::mutex> lock(_preview_mutex);
-        if (_current_preview_srv) 
-        {
-            _preview_srv_to_release = _current_preview_srv; 
-            _current_preview_srv = nullptr; 
-        }
-
-        _preview_h = 0;
-        _preview_w = 0;
-    }
 
     LOG("Video Preview (Rx) stopped\n");
 }
@@ -305,110 +244,45 @@ void Application::handle_frame_captured(ID3D11Texture2D* tex, ID3D11Device* dev)
 
 void Application::handle_frame_received(ID3D11Texture2D* tex, ID3D11Device* dev)
 {
-    if (!tex || !dev)
+    if (!tex)
+        return;
+
+    if (dev != _gfx.get_device()) 
+    {
+        LOG_ERROR("Device mismatch!\n");
+        return; 
+    }
+
+    ID3D11Texture2D * rgba_tex = _yuv_rgb_converter.convert(dev, tex);
+    if (!rgba_tex)
         return;
 
     D3D11_TEXTURE2D_DESC desc;
-    tex->GetDesc(&desc);
-
-    LOG("SRT Frame received width:%u, height:%u!\n", desc.Width, desc.Height);
-
-    D3D11_TEXTURE2D_DESC ui_desc = desc;
-    ui_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE; 
-    ui_desc.Usage = D3D11_USAGE_DEFAULT;
-    ui_desc.CPUAccessFlags = 0;
-    ui_desc.MiscFlags = 0;
-    ui_desc.ArraySize = 1; 
-
-    ID3D11Texture2D* ui_texture = nullptr;
-    const HRESULT hr_tex = dev->CreateTexture2D(&ui_desc, nullptr, &ui_texture);
-    if (FAILED(hr_tex)) 
-    {
-        LOG_ERROR("Failed to create 2D D3D11 texture!\n");
-        return;
-    }
-
-    ID3D11DeviceContext* ctx = nullptr;
-    dev->GetImmediateContext(&ctx);
-    if (ctx)
-    {
-        ctx->CopySubresourceRegion(ui_texture, 0, 0, 0, 0, tex, 0, nullptr);
-        ctx->Release();
-    }
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
-    srv_desc.Format = DXGI_FORMAT_R8_UNORM; // Читаем только канал яркости (Y-plane)
-    srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    srv_desc.Texture2D.MostDetailedMip = 0;
-    srv_desc.Texture2D.MipLevels = 1;
-
-    ID3D11ShaderResourceView* new_srv = nullptr;
-    const HRESULT hr = dev->CreateShaderResourceView(ui_texture, &srv_desc, &new_srv);
+    rgba_tex->GetDesc(&desc);
     
-    ui_texture->Release(); 
-
-    if (FAILED(hr) || nullptr == new_srv) 
-    {
-        LOG_ERROR("Failed to create shader resource view!\n");
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(_preview_mutex);
-        if (_current_preview_srv)
-            _current_preview_srv->Release();
-        
-        _current_preview_srv = new_srv;
-        _preview_w = desc.Width;
-        _preview_h = desc.Height;
-    }
+    ID3D11DeviceContext* ctx = _gfx.get_context();
+    _model.preview_frame_size.store({desc.Width, desc.Height});
+    _model.preview_texture.copy_from(ctx, rgba_tex);
 }
 
 void Application::save_frame_for_loopback(ID3D11Texture2D* tex, ID3D11Device* dev)
 {
-    if (!tex || !dev)
+    if (!_model.is_broadcasting.load() || !tex) 
         return;
 
+    ID3D11Texture2D* my_tex = _gfx_bridge.transfer(dev, tex, _gfx.get_device());
+    if (!my_tex)
+    {
+        LOG_ERROR("CrossDevice bridge failed to transfer texture!\n");
+        return; 
+    }
+
     D3D11_TEXTURE2D_DESC desc;
-    tex->GetDesc(&desc);
-
-    D3D11_TEXTURE2D_DESC ui_desc = desc;
-    ui_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE; 
-    ui_desc.Usage = D3D11_USAGE_DEFAULT;
-    ui_desc.CPUAccessFlags = 0;
-    ui_desc.MiscFlags = 0;
-
-    ID3D11Texture2D* ui_texture = nullptr;
-    HRESULT hr = dev->CreateTexture2D(&ui_desc, nullptr, &ui_texture);
-    if (FAILED(hr)) 
-        return; 
-
-    ID3D11DeviceContext* ctx = nullptr;
-    dev->GetImmediateContext(&ctx);
-    if (ctx)
-    {
-        ctx->CopyResource(ui_texture, tex);
-        ctx->Release();
-    }
-
-    ID3D11ShaderResourceView* new_srv = nullptr;
-    hr = dev->CreateShaderResourceView(ui_texture, nullptr, &new_srv);
+    my_tex->GetDesc(&desc);
     
-    ui_texture->Release(); 
-
-    if (FAILED(hr)) 
-        return; 
-
-    {
-        std::lock_guard<std::mutex> lock(_loopback_mutex);
-        
-        if (_current_loopback_srv)
-            _current_loopback_srv->Release();
-        
-        _current_loopback_srv = new_srv;
-        _loopback_w = desc.Width;
-        _loopback_h = desc.Height;
-    }
+    ID3D11DeviceContext * ctx = _gfx.get_context();
+    _model.loopback_frame_size.store({desc.Width, desc.Height});
+    _model.loopback_texture.copy_from(ctx, my_tex);
 }
 
 void Application::handle_start_stop_stream()
@@ -424,8 +298,8 @@ void Application::handle_start_stop_stream()
     }
     else
     {
-        stop_streaming();
         _model.is_broadcasting = false;
+        stop_streaming();
     }
 }
 
@@ -442,8 +316,8 @@ void Application::handle_start_stop_preview()
     }
     else
     {
-        stop_preview();
         _model.is_watching = false;
+        stop_preview();
     }
 }
 
@@ -488,6 +362,30 @@ void Application::srt_rx_loop()
             continue;
         }
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+}
+
+/* static */ 
+SrtReceiver::NetworkConfig Application::to_srt_network_cfg(const AppModels::NetworkConfigRx& cfg)
+{
+    SrtReceiver::NetworkConfig network_cfg;
+    network_cfg.ip = cfg.server_ip;
+    network_cfg.port = cfg.server_port;
+    network_cfg.pass_phrase = cfg.srt_passphrase;
+    network_cfg.stream_id = std::format("read:{}:{}:{}", cfg.stream_id, cfg.user_name, cfg.user_pwd);
+
+    return network_cfg;
+}
+
+/* static */ 
+SrtTransmitter::NetworkConfig Application::to_srt_network_cfg(const AppModels::NetworkConfigTx& cfg)
+{
+    SrtTransmitter::NetworkConfig network_cfg;
+    network_cfg.ip = cfg.server_ip;
+    network_cfg.port = cfg.server_port;
+    network_cfg.pass_phrase = cfg.srt_passphrase;
+    network_cfg.stream_id = std::format("publish:{}:{}:{}", cfg.stream_id, cfg.user_name, cfg.user_pwd);
+
+    return network_cfg;
 }

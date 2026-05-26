@@ -30,9 +30,6 @@ public:
     bool init(GLFWwindow * window, GraphicsContext * gfx);
     void shutdown();
 
-    void set_web_texture(void * srv, uint w, uint h) { _web_srv = srv; _web_w = w; _web_h = h; }
-    void set_loopback_texture(void * srv, uint w, uint h) { _loopback_srv = srv; _loopback_w = w; _loopback_h = h; }
-
     void set_start_stop_stream_callback(StartStopStreamCallback callback) { _start_stop_stream_callback = callback; }
     void set_start_stop_rx_callback(StartStopRxCallback callback) { _start_stop_rx_callback = callback; }
     void set_sources_update_callback(SourcesUpdateCallback callback) { _sources_update_callback = callback; }
@@ -54,13 +51,6 @@ private:
 
     VideoPreviewWidget          _web_preview_widget;
     VideoPreviewWidget          _loopback_preview_widget;
-
-    // TODO: remove textures from here, should be gathered from AppViewModel
-    void *                      _web_srv = nullptr;
-    void *                      _loopback_srv = nullptr;
-
-    uint                        _web_w = 0, _web_h = 0;
-    uint                        _loopback_w = 0, _loopback_h = 0;
    
     StartStopStreamCallback     _start_stop_stream_callback;
     StartStopRxCallback         _start_stop_rx_callback;
