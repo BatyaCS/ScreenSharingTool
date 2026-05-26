@@ -59,6 +59,7 @@ private:
     void handle_logs_clear_request();
 
     void srt_rx_loop();
+    bool select_codec_for_encoder(ID3D11Device * device, HwStreamEncoder::StreamCodec& codec) const;
 
     static SrtReceiver::NetworkConfig to_srt_network_cfg(const AppModels::NetworkConfigRx& cfg);
     static SrtTransmitter::NetworkConfig to_srt_network_cfg(const AppModels::NetworkConfigTx& cfg);

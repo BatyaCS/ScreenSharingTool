@@ -180,7 +180,12 @@ bool Application::start_streaming()
     if (is_web_stream)
     {
         HwStreamEncoder::EncoderConfig enc_cfg;
-        enc_cfg.codec = HwStreamEncoder::StreamCodec::H264_AMF; // need to be gathered from GPU info
+        if (!select_codec_for_encoder(_gfx.get_device(), enc_cfg.codec))
+        {
+            LOG_ERROR("Failed to select codec to start HW Encoder!\n");
+            return false;
+        }
+
         enc_cfg.fps = stream_cfg.target_fps;
         enc_cfg.bitrate_kbps = stream_cfg.target_br_kbps;
         _encoder.init(enc_cfg);
@@ -491,4 +496,50 @@ SrtTransmitter::NetworkConfig Application::to_srt_network_cfg(const AppModels::N
     network_cfg.stream_id = std::format("publish:{}:{}:{}", cfg.stream_id, cfg.user_name, cfg.user_pwd);
 
     return network_cfg;
+}
+
+bool Application::select_codec_for_encoder(ID3D11Device * device, HwStreamEncoder::StreamCodec& codec) const
+{
+    if (!device) 
+        return false;
+
+    Microsoft::WRL::ComPtr<IDXGIDevice> dxgi_device;
+    HRESULT hr = device->QueryInterface(__uuidof(IDXGIDevice), (void**)&dxgi_device);
+    if (FAILED(hr))
+    {
+        LOG_ERROR("Failed to query D3D interface to select codec!\n");
+        return false;
+    }
+
+    Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
+    hr = dxgi_device->GetAdapter(&adapter);
+    if (FAILED(hr))
+    {
+        LOG_ERROR("Failed to get D3D adapter to select codec!\n");
+        return false;
+    }
+
+    DXGI_ADAPTER_DESC desc;
+    adapter->GetDesc(&desc);
+
+    // TODO: Add support for software encoder in case of none of below supported
+    switch (desc.VendorId)
+    {
+        case 0x10DE: 
+            LOG("Detected NVIDIA GPU. Using NVENC\n");
+            codec = HwStreamEncoder::StreamCodec::H264_NVEC; 
+            return true;
+
+        case 0x1002: 
+            LOG("Detected AMD GPU. Using AMF.\n");
+            codec = HwStreamEncoder::StreamCodec::H264_AMF; 
+            return true;
+
+        case 0x8086: 
+            LOG("Detected Intel GPU. Using QSV.\n");
+            codec = HwStreamEncoder::StreamCodec::H264_QSV; 
+            return true;
+    }
+
+    return false;
 }
