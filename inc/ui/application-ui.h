@@ -16,6 +16,8 @@ class ApplicationUI
     static constexpr uint TARGET_BITRATE_MIN = 500;
     static constexpr uint TARGET_BITRATE_MAX = 10000;
 
+    using StreamConfig = AppModels::StreamConfig;
+
 public:
     using StartStopStreamCallback = std::function<void()>;
     using StartStopRxCallback = std::function<void()>;

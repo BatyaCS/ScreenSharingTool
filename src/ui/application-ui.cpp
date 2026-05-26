@@ -5,20 +5,8 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_dx11.h>
+#include <imgui_stdlib.h>
 #include <GLFW/glfw3.h>
-
-#include <iostream>
-static bool InputTextString(const char* label, std::string& str, ImGuiInputTextFlags flags = 0) 
-{
-    char buf[256];
-    strncpy(buf, str.c_str(), sizeof(buf));
-    buf[sizeof(buf) - 1] = '\0';
-    if (ImGui::InputText(label, buf, sizeof(buf), flags)) {
-        str = buf;
-        return true;
-    }
-    return false;
-}
 
 bool ApplicationUI::init(GLFWwindow * window, GraphicsContext * gfx)
 {
@@ -74,8 +62,7 @@ bool ApplicationUI::render(AppViewModel& view)
     ImGui::Begin("MainLayout", nullptr, flags);
     ImGui::PopStyleVar();
 
-    float log_height = 100.0f;
-    ImGui::BeginChild("TabsRegion", ImVec2(0, -log_height), true);
+    ImGui::BeginChild("TabsRegion", ImVec2(0, 0), true);
     if (ImGui::BeginTabBar("MainTabs")) 
     {
         if (ImGui::BeginTabItem("Broadcaster")) { render_broadcaster_tab(view); ImGui::EndTabItem(); }
@@ -83,8 +70,6 @@ bool ApplicationUI::render(AppViewModel& view)
         ImGui::EndTabBar();
     }
     ImGui::EndChild();
-
-    render_log_window(view);
 
     ImGui::End();
     ImGui::Render();
@@ -100,7 +85,15 @@ bool ApplicationUI::render(AppViewModel& view)
 
 bool ApplicationUI::render_broadcaster_tab(AppViewModel& view)
 {
-    ImGui::BeginChild("BroadcasterSettings", ImVec2(ImGui::GetContentRegionAvail().x * 0.5f, 0), false);
+    const float log_height = 120.0f;
+    ImGui::BeginChild("TopRegion", ImVec2(0, -log_height), false);
+
+    float avail_width = ImGui::GetContentRegionAvail().x;
+    float settings_width = 420.0f; 
+    if (settings_width > avail_width * 0.5f)
+        settings_width = avail_width * 0.5f;
+
+    ImGui::BeginChild("BroadcasterSettings", ImVec2(settings_width, 0), false);
     
     if (ImGui::CollapsingHeader("Capture & Encoding", ImGuiTreeNodeFlags_DefaultOpen))
     {
@@ -142,6 +135,10 @@ bool ApplicationUI::render_broadcaster_tab(AppViewModel& view)
     
     ImGui::EndChild();
 
+    ImGui::EndChild();
+
+    render_log_window(view);
+
     return true;
 }
 
@@ -150,7 +147,11 @@ bool ApplicationUI::render_web_preview_tab(AppViewModel& view)
     if (ImGui::CollapsingHeader("Receiver Configuration (Rx)", ImGuiTreeNodeFlags_DefaultOpen))
     {
         ImGui::BeginDisabled(view.is_watching);
+        
+        ImGui::PushItemWidth(300.0f);
         render_network_rx_settings(view);
+        ImGui::PopItemWidth();
+
         ImGui::EndDisabled();
 
         ImGui::Spacing();
@@ -220,21 +221,21 @@ void ApplicationUI::render_encoding_settings(AppViewModel& view)
 
 void ApplicationUI::render_network_tx_settings(AppViewModel& view)
 {
-    InputTextString("Stream ID", view.network_tx.stream_id);
-    InputTextString("User Name", view.network_tx.user_name);
-    InputTextString("User Pwd", view.network_tx.user_pwd, ImGuiInputTextFlags_Password);
-    InputTextString("SRT Passphrase", view.network_tx.srt_passphrase, ImGuiInputTextFlags_Password);
-    InputTextString("Server IP", view.network_tx.server_ip);
+    ImGui::InputText("Stream ID", &view.network_tx.stream_id);
+    ImGui::InputText("User Name", &view.network_tx.user_name);
+    ImGui::InputText("User Pwd", &view.network_tx.user_pwd, ImGuiInputTextFlags_Password);
+    ImGui::InputText("SRT Passphrase", &view.network_tx.srt_passphrase, ImGuiInputTextFlags_Password);
+    ImGui::InputText("Server IP", &view.network_tx.server_ip);
     ImGui::InputInt("Server Port", reinterpret_cast<int*>(&view.network_tx.server_port));
 }
 
 void ApplicationUI::render_network_rx_settings(AppViewModel& view)
 {
-    InputTextString("Stream ID", view.network_rx.stream_id);
-    InputTextString("User Name", view.network_rx.user_name);
-    InputTextString("User Pwd", view.network_rx.user_pwd, ImGuiInputTextFlags_Password);
-    InputTextString("SRT Passphrase", view.network_rx.srt_passphrase, ImGuiInputTextFlags_Password);
-    InputTextString("Server IP", view.network_rx.server_ip);
+    ImGui::InputText("Stream ID", &view.network_rx.stream_id);
+    ImGui::InputText("User Name", &view.network_rx.user_name);
+    ImGui::InputText("User Pwd", &view.network_rx.user_pwd, ImGuiInputTextFlags_Password);
+    ImGui::InputText("SRT Passphrase", &view.network_rx.srt_passphrase, ImGuiInputTextFlags_Password);
+    ImGui::InputText("Server IP", &view.network_rx.server_ip);
     ImGui::InputInt("Server Port", reinterpret_cast<int*>(&view.network_rx.server_port));
 }
 

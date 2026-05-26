@@ -68,6 +68,21 @@ bool Application::init()
         return false;
     }
 
+    glfwSetWindowUserPointer(_window, this);
+    glfwSetFramebufferSizeCallback(_window, [](GLFWwindow* win, int width, int height) 
+    {
+        auto * app = static_cast<Application*>(glfwGetWindowUserPointer(win));
+        if (app) 
+            app->render_window();
+    });
+
+    glfwSetWindowRefreshCallback(_window, [](GLFWwindow* win) 
+    {
+        auto * app = static_cast<Application*>(glfwGetWindowUserPointer(win));
+        if (app) 
+            app->render_window();
+    });
+
     _ui.set_start_stop_stream_callback([this]() { this->handle_start_stop_stream(); });
     _ui.set_start_stop_rx_callback([this]() { this->handle_start_stop_preview(); });
     _ui.set_sources_update_callback([this]() { this->handle_sources_update(); });
@@ -94,7 +109,6 @@ void Application::cleanup()
 void Application::run()
 {
     handle_sources_update();
-    bool running = true;
 
     while (!glfwWindowShouldClose(_window))
     {
@@ -116,16 +130,33 @@ void Application::run()
             }
         }
 
-        const AppViewModel::FrameSize loopback_size = _model.loopback_frame_size.load();
-        if (loopback_size.width > 0 && loopback_size.height > 0)
-            _model.loopback_texture.resize(_gfx.get_device(), loopback_size.width, loopback_size.height);
-
-        const AppViewModel::FrameSize preview_size = _model.preview_frame_size.load();
-        if (preview_size.width > 0 && preview_size.height > 0)
-            _model.preview_texture.resize(_gfx.get_device(), preview_size.width, preview_size.height);
-
-        _ui.render(_model);
+        render_window();
     }
+}
+
+void Application::render_window()
+{
+    int w_tmp, h_tmp;
+    glfwGetFramebufferSize(_window, &w_tmp, &h_tmp);
+
+    if (w_tmp != _window_width || h_tmp != _window_height)
+    {
+        if (w_tmp > 0 && h_tmp > 0)
+            _gfx.resize(static_cast<uint>(w_tmp), static_cast<uint>(h_tmp));
+
+        _window_width = w_tmp;
+        _window_height = h_tmp;
+    }
+
+    const AppViewModel::FrameSize loopback_size = _model.loopback_frame_size.load();
+    if (loopback_size.width > 0 && loopback_size.height > 0)
+        _model.loopback_texture.resize(_gfx.get_device(), loopback_size.width, loopback_size.height);
+
+    const AppViewModel::FrameSize preview_size = _model.preview_frame_size.load();
+    if (preview_size.width > 0 && preview_size.height > 0)
+        _model.preview_texture.resize(_gfx.get_device(), preview_size.width, preview_size.height);
+
+    _ui.render(_model);
 }
 
 bool Application::start_streaming()

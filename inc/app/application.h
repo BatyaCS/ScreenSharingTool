@@ -33,6 +33,8 @@ public:
     AppViewModel& get_view_model() { return _model; }
 
 private:
+    void render_window();
+
     bool start_streaming();
     void stop_streaming();
 
@@ -72,6 +74,10 @@ private:
 
     std::thread                 _rx_thread;
     std::atomic<bool>           _is_rx_running{false};
+
+    // TODO: GLFW using ints for window sizes, prabably ok to leave this way
+    int                         _window_width = 0;
+    int                         _window_height = 0;
 };
 
 #endif /* APPLICATION_H_ */

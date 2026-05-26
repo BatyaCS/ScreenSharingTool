@@ -18,6 +18,8 @@ public:
 
     bool init(GLFWwindow* window);
     void shutdown();
+
+    void resize(uint width, uint height);
     
     void present();
     void clear_render_target(const Colors& colors);

@@ -42,6 +42,39 @@ void GraphicsContext::shutdown()
     _device.Reset();
 }
 
+void GraphicsContext::resize(uint width, uint height)
+{
+    if (width == 0 || height == 0) 
+        return;
+
+    if (!_swap_chain) 
+        return;
+
+    _context->OMSetRenderTargets(0, nullptr, nullptr);
+    _main_rtv.Reset(); 
+
+    HRESULT hr = _swap_chain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+    if (FAILED(hr)) 
+    {
+        LOG_ERROR("Failed to resize SwapChain buffers!\n");
+        return;
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> tmp_buffer;
+    _swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), &tmp_buffer);
+    _device->CreateRenderTargetView(tmp_buffer.Get(), nullptr, &_main_rtv);
+
+    D3D11_VIEWPORT vp = {};
+    vp.Width = static_cast<float>(width);
+    vp.Height = static_cast<float>(height);
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+    vp.TopLeftX = 0;
+    vp.TopLeftY = 0;
+
+    _context->RSSetViewports(1, &vp);
+}
+
 void GraphicsContext::present()
 {
     if (_swap_chain)
