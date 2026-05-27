@@ -4,7 +4,7 @@ if(NOT CMAKE_TOOLCHAIN_FILE)
     set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/external/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 endif()
 
-project(P2PScreenSharingTool VERSION 0.1.0 LANGUAGES CXX)
+project(ScreenSharingTool VERSION 1.0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -68,9 +68,9 @@ set(APP_SOURCES
     "src/generic/src/log/log.cpp"
 )
 
-add_executable(CaptureApp ${APP_SOURCES})
+add_executable(BatyaStreamer ${APP_SOURCES})
 
-target_include_directories(CaptureApp PRIVATE 
+target_include_directories(BatyaStreamer PRIVATE 
   "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   "${CMAKE_CURRENT_SOURCE_DIR}/inc/config"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/generic/inc"
@@ -78,7 +78,7 @@ target_include_directories(CaptureApp PRIVATE
   ${Stb_INCLUDE_DIR}
 )
 
-target_link_libraries(CaptureApp PRIVATE 
+target_link_libraries(BatyaStreamer PRIVATE 
   ${OpenCV_LIBS}
   ${AVCODEC_LIB} 
   ${AVFORMAT_LIB}
@@ -90,4 +90,13 @@ target_link_libraries(CaptureApp PRIVATE
   SRT::srt
   ws2_32
   screen_capture_lite_static
+)
+
+add_custom_command(
+    TARGET BatyaStreamer POST_BUILD
+    COMMAND "$<$<CONFIG:Release>:${CMAKE_COMMAND}>" $<$<CONFIG:Release>:-E> $<$<CONFIG:Release>:copy_if_different>
+            "$<$<CONFIG:Release>:${CMAKE_CURRENT_SOURCE_DIR}/inc/version/change-log.txt>"
+            "$<$<CONFIG:Release>:$<TARGET_FILE_DIR:BatyaStreamer>/change-log.txt>"
+    COMMENT "Copying change-log.txt to Release output directory..."
+    COMMAND_EXPAND_LISTS
 )

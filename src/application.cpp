@@ -2,6 +2,7 @@
 
 #include <common.h>
 #include <app/application.h>
+#include <config/app-name.h>
 
 #include <iostream>
 #include <format>
@@ -54,7 +55,7 @@ bool Application::init()
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     
     // TODO: Add config for glfw window
-    _window = glfwCreateWindow(1280, 720, "Batya Streamer", nullptr, nullptr);
+    _window = glfwCreateWindow(1280, 720, APP_FULL_NAME, nullptr, nullptr);
     if (!_window) 
     {
         LOG_ERROR("Failed to create GLFW window!\n");

@@ -251,6 +251,17 @@ void ApplicationUI::render_log_window(AppViewModel& view)
         if (_clear_logs_callback) 
             _clear_logs_callback();
 
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Copy All")) 
+    {
+        std::lock_guard<std::mutex> lock(view.logs_mutex);
+        std::string clipboard_data;
+        for (const auto& log : view.logs) 
+            clipboard_data += log.text;
+        
+        ImGui::SetClipboardText(clipboard_data.c_str());
+    }
+
     ImGui::BeginChild("LogScrollingRegion", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1)); 
     
