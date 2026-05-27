@@ -209,11 +209,15 @@ bool Application::start_streaming()
     }
 
     LOG("Video Streaming started\n");
+
+    _model.is_broadcasting = true;
     return true;
 }
 
 void Application::stop_streaming()
 {
+    _model.is_broadcasting = false;
+
     _capturer.stop();
     _encoder.release();
     _srt_sender.close_connection();
@@ -245,12 +249,16 @@ bool Application::start_preview()
     _rx_thread = std::thread(&Application::srt_rx_loop, this);
 
     LOG("Starting RX preview on %s:%u!\n", cfg.ip.c_str(), cfg.port);
+
+    _model.is_watching = true;
     return true;
 }
 
 void Application::stop_preview()
 {
+    _model.is_watching = false;
     _is_rx_running = false;
+
     if (_rx_thread.joinable())
         _rx_thread.join();
 
@@ -401,14 +409,9 @@ void Application::handle_start_stop_stream()
     {   
         if (!start_streaming())
             return;
-
-        _model.is_broadcasting = true;
     }
     else
-    {
-        _model.is_broadcasting = false;
         stop_streaming();
-    }
 }
 
 void Application::handle_start_stop_preview()
@@ -419,14 +422,9 @@ void Application::handle_start_stop_preview()
     {   
         if (!start_preview())
             return;
-
-        _model.is_watching = true;
     }
     else
-    {
-        _model.is_watching = false;
         stop_preview();
-    }
 }
 
 void Application::handle_sources_update()
@@ -541,5 +539,6 @@ bool Application::select_codec_for_encoder(ID3D11Device * device, HwStreamEncode
             return true;
     }
 
+    LOG_ERROR("No HW encoder found for GPU 0x%X!\n", desc.VendorId);
     return false;
 }
