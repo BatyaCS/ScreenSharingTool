@@ -42,6 +42,15 @@ void GraphicsContext::shutdown()
     _device.Reset();
 }
 
+bool GraphicsContext::is_visible() const
+{
+    if (!_swap_chain) 
+        return false;
+
+    const HRESULT hr = _swap_chain->Present(0, DXGI_PRESENT_TEST);
+    return DXGI_STATUS_OCCLUDED != hr;
+}
+
 void GraphicsContext::resize(uint width, uint height)
 {
     if (width == 0 || height == 0) 
@@ -107,7 +116,8 @@ bool GraphicsContext::create_device_d3d(HWND hwnd)
     sd.SampleDesc.Count = 1;
     sd.SampleDesc.Quality = 0;
     sd.Windowed = TRUE;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    // sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
     UINT createDeviceFlags = 0;
     D3D_FEATURE_LEVEL featureLevel;

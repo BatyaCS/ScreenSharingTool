@@ -149,10 +149,12 @@ void Application::render_window()
     int w_tmp, h_tmp;
     glfwGetFramebufferSize(_window, &w_tmp, &h_tmp);
 
+    if (w_tmp == 0 || h_tmp == 0 || !_gfx.is_visible())
+        return Timer::delay(20);
+
     if (w_tmp != _window_width || h_tmp != _window_height)
     {
-        if (w_tmp > 0 && h_tmp > 0)
-            _gfx.resize(static_cast<uint>(w_tmp), static_cast<uint>(h_tmp));
+        _gfx.resize(static_cast<uint>(w_tmp), static_cast<uint>(h_tmp));
 
         _window_width = w_tmp;
         _window_height = h_tmp;
@@ -176,38 +178,47 @@ bool Application::start_streaming()
 
     LOG("Starting stream with %u kbps at %u FPS!\n", stream_cfg.target_br_kbps, stream_cfg.target_fps);
 
-    HwVideoCapturer::CaptureConfig cap_cfg;
-    cap_cfg.target = HwVideoCapturer::Target::DISPLAY;
-    cap_cfg.target_fps = stream_cfg.target_fps;
-    cap_cfg.source_name = stream_cfg.capture_sources.empty() ? "" : stream_cfg.capture_sources.at(stream_cfg.selected_source_idx);
-
     if (is_web_stream)
     {
         HwStreamEncoder::EncoderConfig enc_cfg;
+        enc_cfg.fps = stream_cfg.target_fps;
+        enc_cfg.bitrate_kbps = stream_cfg.target_br_kbps;
+        
         if (!select_codec_for_encoder(_gfx.get_device(), enc_cfg.codec))
         {
             LOG_ERROR("Failed to select codec to start HW Encoder!\n");
             return false;
         }
 
-        enc_cfg.fps = stream_cfg.target_fps;
-        enc_cfg.bitrate_kbps = stream_cfg.target_br_kbps;
-        _encoder.init(enc_cfg);
+        if (!_encoder.init(enc_cfg))
+        {
+            LOG_ERROR("Failed to initialize HW Encoder!\n");
+            return false;
+        }
 
         const SrtTransmitter::NetworkConfig cfg = to_srt_network_cfg(_model.network_tx);
         if (!_srt_sender.open_connection(cfg))
         {
             LOG_ERROR("Failed to initialize SRT Sender!\n");
-            stop_streaming();
+            _encoder.release();
 
             return false;
         }
     }
 
+    HwVideoCapturer::CaptureConfig cap_cfg;
+    cap_cfg.target = HwVideoCapturer::Target::DISPLAY;
+    cap_cfg.target_fps = stream_cfg.target_fps;
+    cap_cfg.source_name = stream_cfg.capture_sources.empty() ? "" : stream_cfg.capture_sources.at(stream_cfg.selected_source_idx);
+
     if (!_capturer.start(cap_cfg, [this](ID3D11Texture2D* tex, ID3D11Device* dev) { this->handle_frame_captured(tex, dev); }))
     {
         LOG_ERROR("Failed to start video capturer loop!\n");
-        stop_streaming();
+        if (is_web_stream)
+        {
+            _srt_sender.close_connection();
+            _encoder.release();
+        }
 
         return false;
     }
@@ -221,6 +232,7 @@ bool Application::start_streaming()
 void Application::stop_streaming()
 {
     _model.is_broadcasting = false;
+    _model.loopback_frame_size = AppViewModel::FrameSize();
 
     _capturer.stop();
     _encoder.release();
@@ -269,6 +281,7 @@ void Application::stop_preview()
     _srt_receiver.close_connection();
     _decoder.release();
 
+    _model.preview_frame_size = AppViewModel::FrameSize();
     LOG("Video Preview (Rx) stopped\n");
 }
 
@@ -469,10 +482,9 @@ void Application::srt_rx_loop()
             LTRACE("Push SRT data into decoder, size: %u\n", rx_data.size());
 
             _decoder.push_data(rx_data);
-            continue;
         }
-        
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        else
+            Timer::delay(5);
     }
 }
 

@@ -66,6 +66,7 @@ set(APP_SOURCES
 
     "src/generic/src/debug/dump.cpp"
     "src/generic/src/log/log.cpp"
+    "src/generic/src/timer/timer.cpp"
 )
 
 add_executable(BatyaStreamer ${APP_SOURCES})

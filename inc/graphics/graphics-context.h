@@ -19,6 +19,7 @@ public:
     bool init(GLFWwindow* window);
     void shutdown();
 
+    bool is_visible() const;
     void resize(uint width, uint height);
     
     void present();

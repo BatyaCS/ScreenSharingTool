@@ -12,18 +12,27 @@ EXTERN_C_START
     __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 EXTERN_C_END
 
-uint64_t GetTicksSinceStart() 
+/* static */ 
+Timer::Time Timer::now()
 {
     static const auto start_time = std::chrono::steady_clock::now();
     auto current_time = std::chrono::steady_clock::now();
-    
+
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time);
-    return static_cast<uint64_t>(elapsed.count());
+    return static_cast<Timer::Time>(elapsed.count());
 }
+
+/* static */ 
+void Timer::delay_us(uint us)
+{
+    // Be aware that OS may unfreeze thread some time after us time 
+    std::this_thread::sleep_for(std::chrono::microseconds(us));
+}
+
 
 EXTERN_C uint logger_timestamp()
 {
-    return static_cast<uint>(GetTicksSinceStart());
+    return static_cast<uint>(Timer::now());
 }
 
 void std_logger(LogKind level, const char * fmt, va_list args)
@@ -68,9 +77,8 @@ void ui_logger(LogKind level, const char * fmt, va_list args)
 
 int main()
 {
-    GetTicksSinceStart();
     ::set_logger(&std_logger);
-
+    
     // Init libraries
     SrtEnvironment srt_environment;
 

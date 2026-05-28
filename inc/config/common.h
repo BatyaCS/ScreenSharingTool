@@ -37,6 +37,7 @@
 
 #include <log/log.h>
 #include <debug/trace.h>
+#include <timer/timer.h>
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
