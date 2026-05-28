@@ -1,3 +1,7 @@
+Version 1.0.2 (28.05.2026):
+    * Optimized GPU usage for UI drawing
+    * Fixed issue with 100% CPU utilization when window is inactive
+
 Version 1.0.1 (27.05.2026):
     * Fixed start/stop buttons state clearing when some error appear during broadcasting or live previewing
     * Added forcing NVIDIA and AMD drivers to use most powerfull GPU on application startup
