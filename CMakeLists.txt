@@ -57,6 +57,7 @@ set(APP_SOURCES
 
     "src/graphics/graphics-context.cpp"
     "src/graphics/texture-buffer.cpp"
+    "src/graphics/texture-scaler.cpp"
     "src/graphics/cross-device-bridge.cpp"
     "src/graphics/yuv-rgb-converter.cpp"
     

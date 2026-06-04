@@ -179,14 +179,16 @@ bool ApplicationUI::render_web_preview_tab(AppViewModel& view)
 
 void ApplicationUI::render_capture_settings(AppViewModel& view)
 {
-    ImGui::Text("Capture Source / Stream Target");
-    ImGui::Spacing();
-
+    ImGui::Text("Capture Source / Stream Target"); ImGui::Spacing();
     ImGui::RadioButton("Monitor", reinterpret_cast<int*>(&view.stream_config.capture_target), 0); 
     // ImGui::SameLine(); ImGui::RadioButton("Application", reinterpret_cast<int*>(&_stream_config.capture_target), 1);
-
     ImGui::RadioButton("WebSRT", reinterpret_cast<int*>(&view.stream_config.stream_target), 0); ImGui::SameLine();
     ImGui::RadioButton("Loopback", reinterpret_cast<int*>(&view.stream_config.stream_target), 1);
+
+    ImGui::Text("Stream Resolution"); ImGui::Spacing();
+    ImGui::RadioButton("Native", reinterpret_cast<int*>(&view.stream_config.stream_resolution), 0); ImGui::SameLine();
+    ImGui::RadioButton("1080P", reinterpret_cast<int*>(&view.stream_config.stream_resolution), 1); ImGui::SameLine();
+    ImGui::RadioButton("720P", reinterpret_cast<int*>(&view.stream_config.stream_resolution), 2);
 
     const std::string combo_label = (view.stream_config.capture_target == AppViewModel::StreamConfig::CaptureTarget::DISPLAY) ? "Select Display" : "Select Window";
     const std::string preview_value = view.stream_config.capture_sources.empty() ? "None found" 

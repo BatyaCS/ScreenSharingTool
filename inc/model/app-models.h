@@ -14,10 +14,12 @@ public:
     {
         enum class CaptureTarget { DISPLAY, WINDOW };
         enum class StreamTarget { WEB, LOOPBACK };
+        enum class StreamResolution { NATIVE, R1080_P, R720_P };
         using CaptureSources = std::vector<std::string>;
 
         CaptureTarget   capture_target;
         StreamTarget    stream_target;
+        StreamResolution stream_resolution;
 
         CaptureSources  capture_sources;
         uint            selected_source_idx;

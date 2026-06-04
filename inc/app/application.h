@@ -8,6 +8,8 @@
 #include <graphics/graphics-context.h>
 #include <graphics/cross-device-bridge.h>
 #include <graphics/yuv-rgb-converter.h>
+#include <graphics/texture-scaler.h>
+#include <graphics/texture-description.h>
 
 #include <network/srt-receiver.h>
 #include <network/srt-transmitter.h>
@@ -64,6 +66,9 @@ private:
     static SrtReceiver::NetworkConfig to_srt_network_cfg(const AppModels::NetworkConfigRx& cfg);
     static SrtTransmitter::NetworkConfig to_srt_network_cfg(const AppModels::NetworkConfigTx& cfg);
 
+    // TODO: this method is incorrect by design, keep for now to have stream scaling feature
+    static void to_texture_desc(const AppModels::StreamConfig& cfg, D3D11_TEXTURE2D_DESC& desc);
+
     GLFWwindow *                _window = nullptr;
     AppViewModel                _model;
     GraphicsContext             _gfx;
@@ -71,8 +76,9 @@ private:
 
     CrossDeviceTextureBridge    _gfx_bridge;
     YuvRgbConverter             _yuv_rgb_converter;
+    TextureScaler               _rgb_scaler;
 
-    HwVideoCapturer             _capturer;    
+    HwVideoCapturer             _capturer;
     HwStreamEncoder             _encoder;
     HwStreamDecoder             _decoder;
     

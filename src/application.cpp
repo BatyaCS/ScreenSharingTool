@@ -16,7 +16,8 @@
 static const AppViewModel::StreamConfig default_ui_stream_cfg = 
 {
     .capture_target = AppViewModel::StreamConfig::CaptureTarget::DISPLAY,
-    .stream_target  = AppViewModel::StreamConfig::StreamTarget::LOOPBACK,
+    .stream_target  = AppViewModel::StreamConfig::StreamTarget::WEB,
+    .stream_resolution = AppViewModel::StreamConfig::StreamResolution::NATIVE,
     .target_fps     = 30,
     .target_br_kbps = 2500
 };
@@ -360,12 +361,32 @@ void Application::save_configs() const
 
 void Application::handle_frame_captured(ID3D11Texture2D* tex, ID3D11Device* dev)
 {
-    const bool is_web_stream = AppViewModel::StreamConfig::StreamTarget::WEB == _model.stream_config.stream_target;
+    ID3D11Device * my_dev = _gfx.get_device();
+    ID3D11Texture2D * my_tex = _gfx_bridge.transfer(dev, tex, my_dev);
+    if (!my_tex)
+    {
+        LOG_ERROR("CrossDevice bridge failed to transfer texture!\n");
+        return stop_streaming();
+    }
 
+    D3D11_TEXTURE2D_DESC tex_desc;
+    tex->GetDesc(&tex_desc);
+
+    // TODO: need to be removed, should be gathered and stored on stream start
+    to_texture_desc(_model.stream_config, tex_desc);
+
+    ID3D11Texture2D * resized_tex = _rgb_scaler.resize(my_dev, my_tex, tex_desc);
+    if (!resized_tex)
+    {
+        LOG_ERROR("Failed to resize texture!\n");
+        return stop_streaming();
+    }
+
+    const bool is_web_stream = AppViewModel::StreamConfig::StreamTarget::WEB == _model.stream_config.stream_target;
     if (is_web_stream)
     {
         std::vector<uint8_t> mpegts_data;
-        if (!_encoder.encode_texture(tex, dev, mpegts_data))
+        if (!_encoder.encode_texture(resized_tex, my_dev, mpegts_data))
             return stop_streaming();
         
         if (!mpegts_data.empty())
@@ -379,7 +400,7 @@ void Application::handle_frame_captured(ID3D11Texture2D* tex, ID3D11Device* dev)
             LTRACE("MPEGTS data is empty!\n");
     }
     else
-        save_frame_for_loopback(tex, dev);
+        save_frame_for_loopback(resized_tex, my_dev);
 }
 
 void Application::handle_frame_received(ID3D11Texture2D* tex, ID3D11Device* dev, uint slice_index)
@@ -410,19 +431,12 @@ void Application::save_frame_for_loopback(ID3D11Texture2D* tex, ID3D11Device* de
     if (!_model.is_broadcasting.load() || !tex) 
         return;
 
-    ID3D11Texture2D* my_tex = _gfx_bridge.transfer(dev, tex, _gfx.get_device());
-    if (!my_tex)
-    {
-        LOG_ERROR("CrossDevice bridge failed to transfer texture!\n");
-        return; 
-    }
-
     D3D11_TEXTURE2D_DESC desc;
-    my_tex->GetDesc(&desc);
+    tex->GetDesc(&desc);
     
     ID3D11DeviceContext * ctx = _gfx.get_context();
     _model.loopback_frame_size.store({desc.Width, desc.Height});
-    _model.loopback_texture.copy_from(ctx, my_tex);
+    _model.loopback_texture.copy_from(ctx, tex);
 }
 
 void Application::handle_start_stop_stream()
@@ -565,4 +579,25 @@ SrtTransmitter::NetworkConfig Application::to_srt_network_cfg(const AppModels::N
     network_cfg.latency_ms = cfg.latency_ms;
 
     return network_cfg;
+}
+
+/* static */ 
+void Application::to_texture_desc(const AppModels::StreamConfig& cfg, D3D11_TEXTURE2D_DESC& desc)
+{
+    using Resolution = AppModels::StreamConfig::StreamResolution;
+    switch (cfg.stream_resolution)
+    {
+        case Resolution::NATIVE:
+            break;
+
+        case Resolution::R1080_P:
+            desc.Width = 1920;
+            desc.Height = 1080;
+            break;
+
+        case Resolution::R720_P:
+            desc.Width = 1280;
+            desc.Height = 720;
+            break;
+    }
 }
